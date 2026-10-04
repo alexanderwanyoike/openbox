@@ -1,0 +1,23 @@
+[package]
+name = "openbox-rekordbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+openbox-domain.workspace = true
+openbox-storage.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+baken-export.workspace = true
+openbox-metadata.workspace = true
+openbox-analysis.workspace = true
+
+[dev-dependencies]
+openbox-test-support.workspace = true
+rekordcrate = "0.3"
+binrw = "0.14"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }

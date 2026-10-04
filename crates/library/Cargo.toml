@@ -1,0 +1,19 @@
+[package]
+name = "openbox-library"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+openbox-domain.workspace = true
+openbox-storage.workspace = true
+openbox-rekordbox.workspace = true
+openbox-analysis.workspace = true
+openbox-metadata.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+
+[dev-dependencies]
+openbox-test-support.workspace = true

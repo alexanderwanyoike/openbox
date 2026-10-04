@@ -1,0 +1,19 @@
+[package]
+name = "openbox-analysis"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+openbox-domain.workspace = true
+aubio = { package = "bliss-audio-aubio-rs", version = "0.2.4", features = ["static", "builtin"] }
+
+[build-dependencies]
+cc = "1"
+pkg-config = "0.3"
+
+[dev-dependencies]
+tempfile.workspace = true
+openbox-test-support.workspace = true

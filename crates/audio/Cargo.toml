@@ -1,0 +1,14 @@
+[package]
+name = "openbox-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+cpal = "0.16"
+
+[dev-dependencies]
+tempfile.workspace = true
+openbox-test-support.workspace = true

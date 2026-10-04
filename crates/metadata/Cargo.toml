@@ -1,0 +1,19 @@
+[package]
+name = "openbox-metadata"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+openbox-domain.workspace = true
+openbox-storage.workspace = true
+lofty = "0.25.4"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+sha2.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+openbox-test-support.workspace = true

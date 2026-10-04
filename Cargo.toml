@@ -1,0 +1,62 @@
+[workspace]
+members = ["crates/*"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.89"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+openbox-domain = { path = "crates/domain" }
+openbox-storage = { path = "crates/storage" }
+openbox-rekordbox = { path = "crates/rekordbox" }
+openbox-library = { path = "crates/library" }
+openbox-test-support = { path = "crates/test-support" }
+openbox-audio = { path = "crates/audio" }
+openbox-analysis = { path = "crates/analysis" }
+openbox-metadata = { path = "crates/metadata" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+sha2 = "0.10"
+baken-export = { git = "https://github.com/M-Igashi/baken", rev = "2789f0615236affdf65d856171b58dfd1eb2425d" }
+
+[package]
+name = "openbox"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Native DJ library and Rekordbox USB management with Iced"
+
+[features]
+default = ["desktop"]
+desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio"]
+
+[dependencies]
+openbox-domain.workspace = true
+openbox-library.workspace = true
+openbox-rekordbox.workspace = true
+openbox-audio = { workspace = true, optional = true }
+clap = { version = "4.5", features = ["derive"], optional = true }
+iced = { version = "0.14", optional = true, default-features = false, features = ["tiny-skia", "tokio", "x11", "wayland", "crisp", "canvas", "image-without-codecs"] }
+rfd = { version = "0.15", optional = true }
+tokio = { version = "1", optional = true, features = ["rt-multi-thread"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+openbox-storage.workspace = true
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[[bin]]
+name = "openbox"
+path = "src/main.rs"
+required-features = ["desktop"]
