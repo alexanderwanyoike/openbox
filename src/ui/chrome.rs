@@ -82,7 +82,10 @@ impl App {
                     "Maximize or restore"
                 ),
                 icons::hint(
-                    icons::action(Icon::Close, Message::Window(WindowAction::Close), true),
+                    icons::action(Icon::Close, Message::Window(WindowAction::Close), true)
+                        .width(32)
+                        .height(48)
+                        .padding([16, 8]),
                     "Close Openbox"
                 ),
             ]
