@@ -45,9 +45,11 @@ Import a folder or multiple audio files. The collection and device trees stay vi
 - In the collection, **+ New playlist** creates a populated playlist from the selection and focuses its name for immediate editing.
 - Select a playlist to remove or move selected tracks together. **Delete** removes the selection from that playlist. Up/down move selected blocks while preserving their internal order; these controls use the original playlist order and are disabled during filtering or other sorts.
 
-The sidebar shows expandable playlist folders. Select a folder, enter a name, then choose **+ Playlist** or **+ Folder**. Selecting a playlist creates siblings in its parent folder. **Root** creates at the top level.
+The sidebar shows expandable playlist folders. Select a folder, enter a name in **New name**, then use the playlist or folder icon beside it. Tooltips identify each action. Selecting a playlist creates siblings in its parent folder. **Root** creates at the top level.
 
 Local changes persist in `.prototype/library.json`, unless `--library` supplies another file. Existing flat libraries continue to load.
+
+The app bar contains File, Edit and View menus. Import, analysis, deck visibility and USB actions are in the workspace toolbar below it. Drag the app caption to move the window; use its window buttons or the bottom-right resize grip.
 
 ## Preview and mix
 

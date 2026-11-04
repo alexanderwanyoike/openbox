@@ -13,3 +13,7 @@ Openbox-authored source files retain their MIT license. The application links GP
 Upstream references: [aubio](https://aubio.org/), [libkeyfinder](https://github.com/mixxxdj/libkeyfinder), [FFTW](https://www.fftw.org/), [Lofty](https://github.com/Serial-ATA/lofty-rs), [image](https://github.com/image-rs/image).
 
 The libkeyfinder and FFTW license texts are included alongside the vendored files. Cargo.lock identifies the exact Rust dependencies. See their published crate packages for their original notices and source.
+
+## Native interface
+
+The application menus use [Iced AW](https://github.com/iced-rs/iced_aw), MIT licensed, with only its menu feature enabled. The bundled Manrope Regular, SemiBold and Bold faces are static instances of the project's Manrope variable font. Copyright 2019 The Manrope Project Authors. The SIL Open Font License is included in `resources/fonts/Manrope-LICENSE.txt`.
