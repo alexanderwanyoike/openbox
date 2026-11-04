@@ -451,6 +451,9 @@ impl App {
         column![
             header,
             scrollable(rows)
+                .direction(scrollable::Direction::Vertical(
+                    scrollable::Scrollbar::hidden()
+                ))
                 .id(if source {
                     "source-tracks"
                 } else {

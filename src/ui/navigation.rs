@@ -188,18 +188,8 @@ impl App {
         container(column![
             scrollable(tree.padding([8, 9]))
                 .direction(scrollable::Direction::Vertical(
-                    scrollable::Scrollbar::new()
-                        .width(4)
-                        .scroller_width(4)
-                        .margin(2)
+                    scrollable::Scrollbar::hidden()
                 ))
-                .style(|theme, status| {
-                    let mut style = scrollable::default(theme, status);
-                    let p = super::appearance::palette(theme);
-                    style.vertical_rail.background = None;
-                    style.vertical_rail.scroller.background = p.line.into();
-                    style
-                })
                 .id("playlist-tree")
                 .height(Length::Fill),
             container(create).padding([8, 12]),
