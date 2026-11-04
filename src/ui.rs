@@ -1,5 +1,6 @@
 pub mod appearance;
 mod browser;
+mod chrome;
 mod icons;
 mod knob;
 mod palette;
@@ -49,6 +50,7 @@ impl fmt::Display for PlaylistChoice {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    Window(chrome::WindowAction),
     Switch(Target),
     SelectPlaylist(Option<u64>),
     OpenPlaylist(Target, u64),
@@ -147,11 +149,17 @@ pub struct App {
     preview: preview::Preview,
     preferences: appearance::Preferences,
     settings_path: PathBuf,
+    library_name: String,
     settings_visible: bool,
 }
 
 impl App {
     pub fn load(library_path: PathBuf, usb_root: Option<PathBuf>) -> Result<Self, String> {
+        let library_name = library_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Library")
+            .to_owned();
         let settings_path = library_path.with_extension("settings.json");
         let preferences = appearance::Preferences::load(&settings_path);
         let settings_error = preferences.as_ref().err().cloned();
@@ -193,6 +201,7 @@ impl App {
             preview: preview::Preview::default(),
             preferences: preferences.unwrap_or_default(),
             settings_path,
+            library_name,
             settings_visible: false,
         })
     }
@@ -200,12 +209,17 @@ impl App {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         if !(matches!(
             message,
-            Message::Tick | Message::Preview(_) | Message::OpenSettings | Message::CloseSettings
+            Message::Tick
+                | Message::Window(_)
+                | Message::Preview(_)
+                | Message::OpenSettings
+                | Message::CloseSettings
         ) || self.settings_visible && matches!(message, Message::Keyboard(_)))
         {
             self.browser_revision = self.browser_revision.wrapping_add(1);
         }
         match message {
+            Message::Window(action) => return chrome::window_action(action),
             Message::OpenSettings => self.settings_visible = true,
             Message::CloseSettings => return self.close_settings(),
             Message::Mode(mode) => self.set_preferences(appearance::Preferences {

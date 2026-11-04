@@ -90,7 +90,7 @@ impl App {
                     .color(colors.muted),
             );
         }
-        let mut body = column![].spacing(8).height(Length::Fill);
+        let mut body = column![].spacing(0).height(Length::Fill);
         if self.preview.visible {
             body = body.push(self.players());
         }
@@ -102,16 +102,24 @@ impl App {
             }))
             .height(Length::Fill)
             .width(Length::Fill)
-            .padding([0, 8]),
+            .padding(iced::Padding {
+                top: if self.preview.visible { 0.0 } else { 8.0 },
+                bottom: 8.0,
+                left: 8.0,
+                right: 8.0,
+            }),
         );
+        status = status.push(icons::hint(
+            iced::widget::mouse_area(icons::themed(Icon::Resize, true))
+                .on_press(Message::Window(super::chrome::WindowAction::Resize)),
+            "Resize window",
+        ));
         let main = column![
             self.header(),
-            horizontal(1),
             body,
-            horizontal(1),
             container(status)
                 .padding([7, 14])
-                .style(move |_| panel(colors.panel))
+                .style(move |_| panel(colors.bg))
         ]
         .height(Length::Fill);
         let overlay: Element<'_, Message> = if self.settings_visible {
@@ -136,108 +144,6 @@ impl App {
             .into()
     }
 
-    fn header(&self) -> Element<'_, Message> {
-        let colors = self.preferences.palette();
-        let usb_name = self
-            .usb_root
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|s| s.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "No USB connected".into());
-        let (label, message, enabled) = if self.target == Target::Usb {
-            (
-                "Import playlist",
-                Message::ImportUsbPlaylist,
-                self.selected_playlist.is_some(),
-            )
-        } else {
-            (
-                if self.selected_folder.is_some() && self.selected_playlist.is_none() {
-                    "Export folder"
-                } else if self.selected_playlist.is_some() {
-                    "Export playlist"
-                } else {
-                    "Export playlists"
-                },
-                Message::Export,
-                self.usb_root.is_some() && !self.export_ids().is_empty(),
-            )
-        };
-        container(
-            row![
-                text("Openbox").size(18).color(colors.ink),
-                Space::new().width(36),
-                Space::new().width(24),
-                icons::hint(
-                    icons::labeled(Icon::Import, "Files", Message::ImportFiles, !self.busy, 85),
-                    "Import music files into your library"
-                ),
-                icons::hint(
-                    icons::labeled(
-                        Icon::Folder,
-                        "Folder",
-                        Message::ImportFolder,
-                        !self.busy,
-                        96
-                    ),
-                    "Import music from a folder and its subfolders"
-                ),
-                icons::hint(
-                    icons::labeled(
-                        Icon::Players,
-                        "Players",
-                        Message::Preview(preview::Event::Toggle),
-                        true,
-                        90
-                    )
-                    .style(if self.preview.visible {
-                        primary
-                    } else {
-                        secondary
-                    }),
-                    if self.preview.visible {
-                        "Hide the decks without stopping playback"
-                    } else {
-                        "Show two preview decks and the mixer"
-                    }
-                ),
-                icons::hint(
-                    icons::labeled(
-                        Icon::Analyze,
-                        "Analyze",
-                        Message::Analyze,
-                        !self.busy
-                            && self.target == Target::Library
-                            && !self.workspace.library.tracks().is_empty(),
-                        112
-                    ),
-                    if self.tracks.selection.len() == 0 {
-                        "Detect BPM, beat grid and key for the library"
-                    } else {
-                        "Detect BPM, beat grid and key for selected tracks"
-                    }
-                ),
-                Space::new().width(Length::Fill),
-                text(usb_name).size(11).color(colors.muted),
-                icons::hint(
-                    icons::labeled(Icon::Usb, "USB", Message::ChooseUsb, !self.busy, 93),
-                    "Open a mounted Rekordbox USB"
-                ),
-                action(label, message, enabled && !self.busy).style(primary),
-                icons::hint(
-                    icons::action(Icon::Settings, Message::OpenSettings, true),
-                    "Settings: interface and waveform themes"
-                ),
-            ]
-            .spacing(10)
-            .align_y(Alignment::Center),
-        )
-        .padding([10, 16])
-        .height(50)
-        .style(move |_| super::surfaces::chrome(colors))
-        .into()
-    }
-
     fn sidebar(&self) -> Element<'static, Message> {
         let colors = self.preferences.palette();
         let mut tree = Column::new().spacing(3);
@@ -245,37 +151,48 @@ impl App {
             let collection = self.workspace.collection(target);
             let count = collection.map_or(0, |l| l.tracks().len());
             let title = if target == Target::Library {
-                "COLLECTION"
+                "Collection"
             } else {
-                "DEVICES"
+                "Devices"
             };
-            tree = tree.push(
-                container(
-                    text(title)
-                        .size(9)
-                        .font(Font::MONOSPACE)
-                        .color(colors.muted),
-                )
-                .padding([12, 10]),
-            );
+            tree = tree.push(container(text(title).size(11).color(colors.muted)).padding([10, 9]));
             let selected_collection = self.target == target
                 && self.selected_playlist.is_none()
                 && self.selected_folder.is_none();
             tree = tree.push(
-                button(row![
-                    text(if target == Target::Library {
-                        "All tracks"
-                    } else {
-                        "USB collection"
-                    })
-                    .size(12)
-                    .width(Length::Fill),
-                    text(count).size(10).color(colors.muted),
-                ])
-                .padding([8, 10])
-                .width(Length::Fill)
-                .style(move |theme, status| nav(theme, status, selected_collection))
-                .on_press(Message::Switch(target)),
+                container(
+                    button(
+                        row![
+                            icons::themed(
+                                if target == Target::Library {
+                                    Icon::Library
+                                } else {
+                                    Icon::Usb
+                                },
+                                true
+                            ),
+                            text(if target == Target::Library {
+                                "All tracks"
+                            } else {
+                                "USB collection"
+                            })
+                            .size(12)
+                            .width(Length::Fill),
+                            text(count).size(10).color(colors.muted),
+                        ]
+                        .spacing(8)
+                        .align_y(Alignment::Center),
+                    )
+                    .padding([8, 10])
+                    .width(Length::Fill)
+                    .style(move |theme, status| nav(theme, status, selected_collection))
+                    .on_press(Message::Switch(target)),
+                )
+                .id(if target == Target::Library {
+                    "collection-row"
+                } else {
+                    "device-row"
+                }),
             );
             tree = tree.push(
                 row![
@@ -318,6 +235,14 @@ impl App {
                 };
                 let label = button(
                     row![
+                        icons::themed(
+                            if matches!(node, PlaylistNode::Folder(_)) {
+                                Icon::Folder
+                            } else {
+                                Icon::Playlist
+                            },
+                            true
+                        ),
                         text(node.name().to_owned())
                             .size(12)
                             .wrapping(iced::widget::text::Wrapping::None)
@@ -366,17 +291,10 @@ impl App {
         let can_create =
             !self.busy && self.collection().is_some() && !self.new_name.trim().is_empty();
         let create = column![
-            text(if self.target == Target::Library {
-                "NEW IN COLLECTION"
-            } else {
-                "NEW ON USB"
-            })
-            .size(9)
-            .font(Font::MONOSPACE)
-            .color(colors.muted),
             tooltip(
                 text(location.clone())
-                    .size(11)
+                    .size(10)
+                    .color(colors.muted)
                     .wrapping(iced::widget::text::Wrapping::None)
                     .height(16),
                 text(location.clone()),
@@ -395,17 +313,16 @@ impl App {
         ]
         .spacing(7);
         container(column![
-            scrollable(tree).id("playlist-tree").height(Length::Fill),
-            horizontal(1),
-            container(create).padding(12),
+            scrollable(tree.padding([8, 9]))
+                .id("playlist-tree")
+                .height(Length::Fill),
+            container(create).padding([8, 12]),
             row![
                 icons::hint(
-                    icons::labeled(
+                    icons::action(
                         Icon::Refresh,
-                        "Refresh",
                         Message::RefreshUsb,
-                        self.usb_root.is_some() && !self.busy,
-                        144
+                        self.usb_root.is_some() && !self.busy
                     ),
                     "Reread the USB library from disk"
                 ),
@@ -413,15 +330,22 @@ impl App {
                     "Undo",
                     Message::UndoUsb,
                     self.undo_usb.is_some() && !self.busy
-                ),
+                )
+                .style(quiet),
+                Space::new().width(Length::Fill),
             ]
             .spacing(6)
             .padding([0, 12]),
             Space::new().height(12),
         ])
-        .width(224)
+        .id("collection-panel")
+        .width(212)
         .height(Length::Fill)
-        .style(move |_| super::surfaces::card(colors))
+        .style(move |_| {
+            let mut style = super::surfaces::card(colors);
+            style.border.width = 0.0;
+            style
+        })
         .into()
     }
 

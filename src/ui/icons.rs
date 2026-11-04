@@ -11,6 +11,12 @@ use std::time::Duration;
 
 #[derive(Clone, Copy)]
 pub(super) enum Icon {
+    Brand,
+    Library,
+    Playlist,
+    Minimize,
+    Maximize,
+    Resize,
     Play,
     Pause,
     Back,
@@ -70,7 +76,7 @@ pub(super) fn hint<'a>(
     .snap_within_viewport(true)
 }
 
-fn themed(icon: Icon, enabled: bool) -> Element<'static, Message> {
+pub(super) fn themed(icon: Icon, enabled: bool) -> Element<'static, Message> {
     canvas::Canvas::new(Symbol { icon, enabled })
         .width(16)
         .height(16)
@@ -92,7 +98,9 @@ impl canvas::Program<Message> for Symbol {
         _: mouse::Cursor,
     ) -> Vec<Geometry> {
         let colors = super::appearance::palette(theme);
-        let color = if self.enabled {
+        let color = if matches!(self.icon, Icon::Brand) {
+            colors.accent
+        } else if self.enabled {
             colors.ink
         } else {
             colors.muted
@@ -108,6 +116,44 @@ impl canvas::Program<Message> for Symbol {
             frame.stroke(&path, Stroke::default().with_width(1.5).with_color(color));
         };
         match self.icon {
+            Icon::Brand => {
+                frame.stroke(
+                    &Path::circle(Point::new(8.0, 6.0), 4.0),
+                    Stroke::default().with_width(1.5).with_color(color),
+                );
+                line(
+                    &mut frame,
+                    &[(2.0, 7.0), (2.0, 14.0), (14.0, 14.0), (14.0, 7.0)],
+                );
+                line(&mut frame, &[(5.0, 10.0), (11.0, 10.0)]);
+            }
+            Icon::Library => {
+                for x in [3.0, 7.0, 12.0] {
+                    line(&mut frame, &[(x, 3.0), (x, 13.0)]);
+                }
+                line(&mut frame, &[(1.0, 14.0), (15.0, 14.0)]);
+            }
+            Icon::Playlist => {
+                for y in [4.0, 8.0, 12.0] {
+                    line(&mut frame, &[(3.0, y), (13.0, y)]);
+                }
+            }
+            Icon::Minimize => line(&mut frame, &[(3.0, 11.0), (13.0, 11.0)]),
+            Icon::Maximize => line(
+                &mut frame,
+                &[
+                    (3.0, 3.0),
+                    (13.0, 3.0),
+                    (13.0, 13.0),
+                    (3.0, 13.0),
+                    (3.0, 3.0),
+                ],
+            ),
+            Icon::Resize => {
+                line(&mut frame, &[(5.0, 14.0), (14.0, 5.0)]);
+                line(&mut frame, &[(10.0, 14.0), (14.0, 10.0)]);
+            }
+
             Icon::Close => {
                 line(&mut frame, &[(3.0, 3.0), (13.0, 13.0)]);
                 line(&mut frame, &[(13.0, 3.0), (3.0, 13.0)]);
