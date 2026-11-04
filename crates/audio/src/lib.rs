@@ -138,7 +138,10 @@ mod sync_tests {
     fn sync_matches_the_leaders_tempo_and_phase_and_manual_pitch_releases_it() {
         let mut mixer = Mixer::default();
         for (id, bpm, offset) in [(DeckId::A, 120.0, 0.1), (DeckId::B, 126.0, 0.23)] {
-            mixer.load(id, Clip::from_pcm(vec![1000; 44100 * 2 * 40], 44100).unwrap());
+            mixer.load(
+                id,
+                Clip::from_pcm(vec![1000; 44100 * 2 * 40], 44100).unwrap(),
+            );
             let beats = (0..80).map(|n| offset + n as f64 * 60.0 / bpm).collect();
             mixer.set_beat_grid(id, BeatGrid::new(bpm, beats).unwrap());
         }
@@ -149,13 +152,20 @@ mod sync_tests {
         let snapshot = mixer.snapshot();
         assert!((snapshot.decks[1].rate - 120.0 * 1.02 / 126.0).abs() < 1e-9);
         assert_eq!(snapshot.decks[1].sync_leader, Some(DeckId::A));
-        let phase = |time: f64, bpm: f64, offset: f64| ((time - offset) * bpm / 60.0).rem_euclid(1.0);
-        assert!((phase(snapshot.decks[0].position, 120.0, 0.1) - phase(snapshot.decks[1].position, 126.0, 0.23)).abs() < 1e-6);
+        let phase =
+            |time: f64, bpm: f64, offset: f64| ((time - offset) * bpm / 60.0).rem_euclid(1.0);
+        assert!(
+            (phase(snapshot.decks[0].position, 120.0, 0.1)
+                - phase(snapshot.decks[1].position, 126.0, 0.23))
+            .abs()
+                < 1e-6
+        );
         mixer.control(DeckId::A, DeckControl::PlayPause);
         mixer.control(DeckId::B, DeckControl::PlayPause);
         mixer.render(&mut vec![0.0; 44100 * 2 * 10], 44100, 2);
         let snapshot = mixer.snapshot();
-        let delta = phase(snapshot.decks[0].position, 120.0, 0.1) - phase(snapshot.decks[1].position, 126.0, 0.23);
+        let delta = phase(snapshot.decks[0].position, 120.0, 0.1)
+            - phase(snapshot.decks[1].position, 126.0, 0.23);
         assert!(delta.abs() < 0.001 || (delta.abs() - 1.0).abs() < 0.001);
         mixer.control(DeckId::A, DeckControl::Rate(1.04));
         assert!((mixer.snapshot().decks[1].rate - 120.0 * 1.04 / 126.0).abs() < 1e-9);
@@ -172,10 +182,16 @@ mod sync_lock_tests {
         let mut mixer = Mixer::default();
         for id in [DeckId::A, DeckId::B] {
             mixer.load(id, Clip::from_pcm(vec![1000; 1000 * 2 * 60], 1000).unwrap());
-            let beats = (0..120).map(|n| {
-                let position = n as f64 * 0.5;
-                if id == DeckId::B && n > 10 { position + (n - 10) as f64 * 0.005 } else { position }
-            }).collect();
+            let beats = (0..120)
+                .map(|n| {
+                    let position = n as f64 * 0.5;
+                    if id == DeckId::B && n > 10 {
+                        position + (n - 10) as f64 * 0.005
+                    } else {
+                        position
+                    }
+                })
+                .collect();
             mixer.set_beat_grid(id, BeatGrid::new(120.0, beats).unwrap());
         }
         mixer.sync_to(DeckId::B, DeckId::A).unwrap();
@@ -191,6 +207,9 @@ mod sync_lock_tests {
         }
         let position = mixer.snapshot().decks[1].position;
         let phase = ((position - 5.0) / 0.505).rem_euclid(1.0);
-        assert!(phase < 0.04 || phase > 0.96, "Follower drifted to phase {phase}");
+        assert!(
+            phase < 0.04 || phase > 0.96,
+            "Follower drifted to phase {phase}"
+        );
     }
 }
