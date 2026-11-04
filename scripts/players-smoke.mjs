@@ -48,7 +48,7 @@ app.stderr.on('data', data => { logs += data; });
 const x = (...args) => execFileSync('xdotool', args, { encoding: 'utf8' }).trim();
 let window;
 const capture = name => execFileSync('import', ['-window', window, join(screenshots, `${name}.png`)]);
-async function click(px, py) { x('mousemove', '--window', window, String(px), String(py)); await delay(100); x('click', '1'); await delay(500); }
+async function click(px, py) { x('mousemove', '--window', window, String(px), String(py)); await delay(220); x('click', '1'); await delay(500); }
 async function drag(from, to, y) {
   x('mousemove', '--window', window, String(from), String(y)); await delay(100);
   x('mousedown', '1'); await delay(150);
@@ -114,10 +114,12 @@ async function checkWaveformMotion() {
 
 try {
   await waitFor(() => { window = x('search', '--onlyvisible', '--pid', String(app.pid), '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Iced window did not open');
+  x('windowraise', window);
   x('windowfocus', window);
   await delay(500);
   await click(400, 234);
   await click(1260, 72);
+  await delay(1200);
   await click(550, 134);
   await delay(1200);
   capture('players-loaded-a');

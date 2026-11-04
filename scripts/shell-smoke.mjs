@@ -27,6 +27,7 @@ try {
     await delay(100);
   }
   assert.ok(window, `No native window: ${logs}`);
+  x('windowraise', window);
   x('windowfocus', window);
   await delay(700);
   await capture('shell-initial');

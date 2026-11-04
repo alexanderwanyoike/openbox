@@ -37,6 +37,7 @@ async function start() {
   app = spawn(binary, ['--library', library], { stdio: ['ignore', 'ignore', 'pipe'] });
   app.stderr.on('data', data => { logs += data; });
   await waitFor(() => { window = x('search', '--onlyvisible', '--pid', String(app.pid), '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Window did not open');
+  x('windowraise', window);
   x('windowfocus', window);
   await delay(400);
 }
