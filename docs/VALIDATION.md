@@ -5,7 +5,7 @@ Validated on Linux with Rust 1.96.1 and Iced 0.14. Commands use Cargo directly.
 | Check | Result |
 |---|---|
 | `cargo test --workspace --no-default-features` | Core crate tests |
-| `cargo test --workspace --all-targets` | 71 tests passed; 2 manual timing harnesses ignored, including audio mixing, waveform seeking, export progress, selection, bulk commands and startup parsing |
+| `cargo test --workspace --all-targets` | 80 tests passed; 3 manual timing harnesses ignored, including audio mixing, waveform seeking, export progress, selection, bulk commands and startup parsing |
 | `cargo check --workspace --all-targets` | Passed for desktop and all targets |
 | `cargo clippy --workspace --all-targets -- -D warnings` | Passed with warnings treated as errors |
 | `cargo fmt --all -- --check` | Passed |
@@ -46,7 +46,7 @@ Automatic beat numbering assumes 4/4 from the first detected beat. Musical downb
 
 The rendered-pixel regression checks blue bass ahead of the playhead and a warm waveform behind it using the real software renderer. The envelope tests check frequency-band dominance, higher-resolution detail, silence and invalid time bounds. Position tests check interpolation between snapshots, pitch, pause and track end. A knob test reproduces consecutive drags being mistaken for double-click reset. A native layout test verifies the library retains a useful viewport when the player panel is toggled.
 
-`OPENBOX_CHECK_MOTION=1` adds a 60 fps X11 capture to the player harness. It compares consecutive waveform crops, excluding the cursor, and requires at least 45 distinct updates per second. In this environment the previous release produced 23.1 fps; the GPU development build produced 53 distinct frames/sec on the Intel UHD desktop. Xvfb software rendering measured about 23 fps with the detailed rulers. These are local fixture measurements rather than a guarantee for every GPU, display, CPU or library.
+`OPENBOX_CHECK_MOTION=1` adds a 60 fps X11 capture to the player harness. It compares consecutive waveform crops, excluding the cursor, and requires at least 45 distinct updates per second. In this environment the previous release produced 23.1 fps; the GPU development build produced 51.3 to 53 distinct frames/sec on the Intel UHD desktop. Xvfb software rendering measured about 23 fps with the detailed rulers. These are local fixture measurements rather than a guarantee for every GPU, display, CPU or library.
 
 Three ignored timing harnesses can be run with `cargo test --release profile_ -- --ignored --nocapture`. They measure software waveform rasterization and construction/layout of a cached, filtered/sorted 5,000-track browser. Warm browser construction/layout measured about 0.08 ms at p95 after caching; previously browser construction alone measured about 3.8 ms. The overview cache and bounded envelope queries prevent full-song scans during animation. See ADR 005 for the rendering and cache rules.
 
@@ -55,3 +55,5 @@ The development profile optimizes the software rasterizer without disabling appl
 ## Appearance and panels
 
 The native settings journey exercises both modes, eight materials, six accents and ten waveform palettes, preference persistence across restart, restoring defaults and retaining the selected browser row after closing Settings. It checks that library and audio bytes are unchanged. Palette tests exercise 96 combinations for text contrast, accent saturation and persistence. A native layout test checks separate inset panels for the two decks and mixer. The default background/panel/chrome test uses the exact neutral Showbiz surface colours. Screenshots capture the actual native window.
+
+The shell layout regression runs at 1100 and 1440 pixels wide. It checks separate 48-pixel app/workspace bars, inset collection rows and a tree viewport of at least 260 pixels with decks visible at a 900-pixel window height. Native verification covers File/View menus, deck visibility, creating a playlist inside a selected nested folder, Settings and unchanged audio. On the real X11 desktop, caption dragging, maximize/restore, minimize, the resize grip and close all passed; native decoration hints confirm there is one title bar. The bundled Manrope faces retain their OFL.
