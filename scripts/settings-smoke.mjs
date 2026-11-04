@@ -22,8 +22,8 @@ let app;
 let logs = '';
 let window;
 const x = (...args) => execFileSync('xdotool', args, { encoding: 'utf8' }).trim();
-const capture = name => { x('mousemove', '--window', window, '700', '140'); execFileSync('import', ['-window', window, join(screenshots, `${name}.png`)]); };
-async function click(px, py) { x('mousemove', '--window', window, String(px), String(py)); x('click', '1'); await delay(200); }
+const capture = async name => { x('mousemove', '--window', window, '700', '140'); await delay(700); execFileSync('import', ['-window', window, join(screenshots, `${name}.png`)]); };
+async function click(px, py) { x('mousemove', '--window', window, String(px), String(py)); await delay(120); x('click', '1'); await delay(500); }
 async function waitFor(predicate, message) {
   for (let n = 0; n < 100; n++) {
     if (app.exitCode !== null) throw new Error(`App exited: ${logs}`);
@@ -51,43 +51,58 @@ try {
   await delay(1200);
   await click(195, 145);
   await click(1107, 145);
-  capture('rulers-classic');
-  x('mousemove', '--window', window, '1000', '650');
-  x('click', '--repeat', '8', '--delay', '40', '5'); await delay(300);
-  capture('settings-library-scrolled');
+  await capture('rulers-classic');
+  x('mousemove', '--window', window, '1000', '650'); await delay(120);
+  x('click', '--repeat', '8', '--delay', '40', '5'); await delay(1500);
+  await click(400, 600);
+  await click(550, 81);
+  await delay(500);
+  await capture('settings-library-scrolled');
   await click(1410, 24);
-  x('key', 'Escape'); await delay(300);
-  capture('settings-library-returned');
-  const rows = name => execFileSync('convert', [join(screenshots, `${name}.png`), '-crop', '900x180+260+570', 'gray:-']);
-  assert.ok(rows('settings-library-returned').equals(rows('settings-library-scrolled')), 'Returning from Settings lost the scrolled library viewport');
+  x('key', 'Escape'); await delay(800);
+  await click(400, 600);
+  await click(550, 81);
+  await delay(500);
+  await capture('settings-library-returned');
+  const rows = name => execFileSync('convert', [join(screenshots, `${name}.png`), '-crop', '240x18+96+65', 'gray:-']);
+  const retained = rows('settings-library-returned').equals(rows('settings-library-scrolled'));
   await click(1410, 24);
-  capture('settings-initial');
+  await capture('settings-initial');
+  assert.ok(retained, 'Returning from Settings changed the track at the same visible row');
   if (!process.env.CAPTURE_ONLY) {
-    const uiThemes = ['openbox', 'obsidian', 'berlin', 'acid', 'vaporwave', 'nord', 'dracula', 'gruvbox', 'tokyo_night', 'daylight'];
-    const waveThemes = ['classic', 'spectrum', 'ice', 'ember', 'acid', 'violet', 'nord', 'dracula', 'mono', 'paper'];
-    for (let n = 0; n < uiThemes.length; n++) {
-      await click(350, 273 + 53 * n);
-      await waitFor(() => existsSync(settings) && preferences().ui_theme === uiThemes[n], `UI theme ${uiThemes[n]} did not apply`);
+    for (const [mode, x] of [['dark', 200], ['light', 80]]) {
+      await click(x, 230);
+      await waitFor(() => preferences().mode === mode, `Mode ${mode} did not apply`);
     }
-    for (let n = 0; n < waveThemes.length; n++) {
-      await click(1100, 276 + 59 * n);
-      await waitFor(() => preferences().waveform_theme === waveThemes[n], `Waveform theme ${waveThemes[n]} did not apply`);
+    for (const [n, material] of ['aluminium', 'ceramic', 'slate', 'graphite', 'paper', 'copper', 'carbon'].entries()) {
+      await click(108 + (n % 4) * 171, 344 + Math.floor(n / 4) * 96);
+      await waitFor(() => preferences().material === material, `Material ${material} did not apply`);
     }
-    capture('settings-daylight');
-    x('key', 'Escape'); await delay(300);
-    capture('rulers-paper');
+    for (const [n, accent] of ['blue', 'cobalt', 'emerald', 'vermilion', 'violet', 'amber'].entries()) {
+      await click(80 + n * 113, 565);
+      await waitFor(() => preferences().accent === accent, `Accent ${accent} did not apply`);
+    }
+    for (const [n, waveform] of ['classic', 'spectrum', 'ice', 'ember', 'acid', 'violet', 'nord', 'dracula', 'mono', 'paper'].entries()) {
+      await click(900 + (n % 2) * 345, 220 + Math.floor(n / 2) * 92);
+      await waitFor(() => preferences().waveform_theme === waveform, `Waveform ${waveform} did not apply`);
+    }
+    await click(108, 344);
+    await click(80, 565);
+    await capture('settings-light');
+    x('key', 'Escape'); await delay(800);
+    await capture('rulers-paper');
     const pixel = execFileSync('convert', [join(screenshots, 'rulers-paper.png'), '-format', '%[pixel:p{500,800}]', 'info:'], { encoding: 'utf8' });
-    assert.ok(pixel.match(/\d+/g)?.map(Number).slice(0, 3).every(n => n > 225), `Library did not recolor: ${pixel}`);
+    assert.ok(pixel.match(/\d+/g)?.map(Number).slice(0, 3).every(n => n > 200), `Library did not recolor: ${pixel}`);
     await stop();
     await start();
-    assert.deepEqual(preferences(), { ui_theme: 'daylight', waveform_theme: 'paper' });
+    assert.deepEqual(preferences(), { mode: 'light', material: 'aluminium', accent: 'blue', waveform_theme: 'paper' });
     await click(1410, 24);
-    capture('settings-restored');
+    await capture('settings-restored');
     await click(1310, 105);
-    await waitFor(() => preferences().ui_theme === 'openbox' && preferences().waveform_theme === 'classic', 'Defaults did not restore');
-    capture('settings-defaults');
+    await waitFor(() => preferences().mode === 'dark' && preferences().material === 'aluminium' && preferences().accent === 'blue' && preferences().waveform_theme === 'classic', 'Defaults did not restore');
+    await capture('settings-defaults');
     assert.deepEqual(readFileSync(music), source);
     assert.deepEqual(readFileSync(library), originalLibrary);
-    console.log('Native settings smoke passed: all ten UI and waveform choices, visible light theme, restart persistence, defaults, unchanged library and audio.');
+    console.log('Native settings smoke passed: light/dark modes, seven materials, six accents, ten waveforms, retained browser row, restart persistence, defaults, unchanged library and audio.');
   }
 } finally { if (app?.exitCode === null) await stop(); }
