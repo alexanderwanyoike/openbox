@@ -2,6 +2,7 @@ pub mod appearance;
 mod browser;
 mod chrome;
 mod icons;
+mod faders;
 mod knob;
 mod navigation;
 mod palette;

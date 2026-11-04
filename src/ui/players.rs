@@ -3,12 +3,13 @@ use super::{
     icons::{self, Icon},
     preview::Event,
     view::{self, action, panel},
+    faders::{self, Kind},
     waveform::Wave,
 };
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Theme,
     widget::{
-        Space, canvas, column, container, progress_bar, row, slider, text, vertical_slider,
+        Space, canvas, column, container, row, text, vertical_slider,
     },
 };
 use openbox_audio::{Band, DeckControl, DeckId};
@@ -287,23 +288,14 @@ impl App {
                 .size(9)
                 .font(Font::MONOSPACE)
                 .color(colors.muted),
-            slider(-8.0..=8.0, deck.pitch, move |pitch| control(
-                DeckControl::Rate(1.0 + pitch / 100.0)
-            ))
-            .default(0.0)
-            .step(0.05)
-            .height(16)
-            .style(move |theme, status| slider_style(theme, status, accent)),
+            faders::horizontal(Kind::Pitch, deck.pitch, accent, move |pitch| control(DeckControl::Rate(1.0 + pitch / 100.0))),
             text(format!("{:+.2}%", deck.pitch))
                 .size(11)
                 .font(Font::MONOSPACE)
                 .color(accent)
                 .width(60),
             icons::hint(
-                icons::action(Icon::Reset, control(DeckControl::Rate(1.0)), enabled)
-                    .height(18)
-                    .width(24)
-                    .padding(1),
+                icons::action(Icon::Reset, control(DeckControl::Rate(1.0)), enabled),
                 "Reset pitch to the track’s original speed"
             ),
         ]
@@ -314,7 +306,7 @@ impl App {
             clock,
             canvas(wave(true)).width(Length::Fill).height(28),
             zoom,
-            canvas(wave(false)).width(Length::Fill).height(174),
+            canvas(wave(false)).width(Length::Fill).height(162),
             transport,
             container(pitch).id(format!("pitch-controls-{id:?}"))
         ]
@@ -380,14 +372,14 @@ impl App {
             controls.push(
                 column![
                     row![
-                        canvas(FaderScale).width(15).height(100),
+                        canvas(FaderScale).width(15).height(94),
                         icons::hint(
                             vertical_slider(0.0..=1.0, deck.fader, move |value| {
                                 Message::Preview(Event::Control(id, DeckControl::Fader(value)))
                             })
                             .default(1.0).step(0.01).shift_step(0.001)
-                            .width(30).height(100)
-                            .style(move |theme, status| fader_style(theme, status, accent)),
+                            .width(30).height(94)
+                            .style(move |theme, status| faders::vertical_style(theme, status, accent)),
                             "Channel volume · Ctrl-click to reset · Shift for fine adjustment"
                         ),
                         channel_meter(state.decks[id.index()].peak, colors),
@@ -424,12 +416,7 @@ impl App {
             .spacing(16),
             row![
                 text("MASTER").size(8).color(colors.muted),
-                slider(0.0..=1.0, self.preview.master, |value| Message::Preview(
-                    Event::Master(value)
-                ))
-                .default(0.8)
-                .step(0.01)
-                .height(14),
+                faders::horizontal(Kind::Master, f64::from(self.preview.master), colors.accent, |value| Message::Preview(Event::Master(value as f32))),
                 text(if state.clipped { "CLIP" } else { "OUT" })
                     .size(8)
                     .color(if state.clipped {
@@ -450,12 +437,7 @@ impl App {
             ),
             row![
                 text("A").size(9).color(colors.accent),
-                slider(0.0..=1.0, self.preview.crossfade, |value| Message::Preview(
-                    Event::Crossfade(value)
-                ))
-                .default(0.5)
-                .step(0.01)
-                .height(20),
+                faders::horizontal(Kind::Crossfade, f64::from(self.preview.crossfade), colors.accent, |value| Message::Preview(Event::Crossfade(value as f32))),
                 text("B").size(9).color(colors.deck_b)
             ]
             .spacing(8)
@@ -465,26 +447,6 @@ impl App {
         .width(230)
         .into()
     }
-}
-
-fn fader_style(theme: &Theme, status: slider::Status, accent: Color) -> slider::Style {
-    let colors = super::appearance::palette(theme);
-    let mut style = slider::default(theme, status);
-    style.rail.backgrounds = (colors.bg.into(), colors.bg.into());
-    style.rail.width = 5.0;
-    style.handle.shape = slider::HandleShape::Rectangle {
-        width: 9,
-        border_radius: 2.0.into(),
-    };
-    style.handle.background = if status == slider::Status::Dragged {
-        accent
-    } else {
-        colors.ink
-    }
-    .into();
-    style.handle.border_width = 1.0;
-    style.handle.border_color = accent;
-    style
 }
 
 fn channel_meter(peak: f32, colors: super::appearance::Palette) -> Element<'static, Message> {
@@ -519,24 +481,21 @@ fn channel_meter(peak: f32, colors: super::appearance::Palette) -> Element<'stat
     .into()
 }
 
-fn slider_style(theme: &Theme, status: slider::Status, accent: Color) -> slider::Style {
-    let colors = super::appearance::palette(theme);
-    let mut style = slider::default(theme, status).with_circular_handle(4.0);
-    style.rail.backgrounds = (accent.into(), colors.line.into());
-    style.rail.width = 2.0;
-    style.handle.background = accent.into();
-    style
-}
-
 fn meter(value: f32, accent: Color) -> Element<'static, Message> {
-    progress_bar(0.0..=1.0, value)
-        .girth(3)
-        .style(move |theme| progress_bar::Style {
-            background: super::appearance::palette(theme).bg.into(),
-            bar: accent.into(),
-            border: Border::default(),
-        })
-        .into()
+    canvas(OutputMeter { value, accent }).width(Length::Fill).height(3).into()
+}
+struct OutputMeter { value: f32, accent: Color }
+impl canvas::Program<Message> for OutputMeter {
+    type State = ();
+    fn draw(&self, _: &(), renderer: &iced::Renderer, theme: &Theme, bounds: iced::Rectangle, _: iced::mouse::Cursor) -> Vec<canvas::Geometry> {
+        let mut frame = canvas::Frame::new(renderer, bounds.size());
+        let p = super::appearance::palette(theme);
+        let width = (bounds.width - 23.0 * 2.0) / 24.0;
+        for n in 0..24 {
+            frame.fill_rectangle(iced::Point::new(n as f32 * (width + 2.0),0.0), iced::Size::new(width,bounds.height), if self.value > n as f32 / 24.0 { self.accent } else { p.line });
+        }
+        vec![frame.into_geometry()]
+    }
 }
 
 fn time(seconds: f64) -> String {
