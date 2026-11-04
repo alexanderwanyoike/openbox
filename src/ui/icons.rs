@@ -67,9 +67,13 @@ pub(super) fn hint<'a>(
 ) -> Tooltip<'a, Message> {
     tooltip(
         content,
-        container(text(label.into()).size(11)).max_width(240),
+        container(text(label.into()).size(11).line_height(1.4)).max_width(280),
         tooltip::Position::Bottom,
     )
+    .style(|theme| {
+        let p = super::appearance::palette(theme);
+        container::Style { background: Some(p.raised.into()), text_color: Some(p.ink), border: iced::Border { color: p.line, width: 1.0, radius: 6.0.into() }, ..Default::default() }
+    })
     .delay(Duration::from_millis(500))
     .gap(8)
     .padding(8)

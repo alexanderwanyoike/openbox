@@ -8,7 +8,7 @@ use super::{
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Theme,
     widget::{
-        Space, canvas, column, container, progress_bar, row, slider, text, tooltip, vertical_slider,
+        Space, canvas, column, container, progress_bar, row, slider, text, vertical_slider,
     },
 };
 use openbox_audio::{Band, DeckControl, DeckId};
@@ -135,11 +135,7 @@ impl App {
                 colors
             ),
             column![
-                tooltip(
-                    text(title_short).size(14),
-                    text(title).size(12),
-                    tooltip::Position::Bottom
-                ),
+                icons::hint(text(title_short).size(14), title),
                 text(artist.chars().take(45).collect::<String>())
                     .size(10)
                     .color(colors.muted)
@@ -332,8 +328,7 @@ impl App {
         let state = &self.preview.snapshot;
         let channel = |id: DeckId, accent| {
             let deck = &self.preview.decks[id.index()];
-            let knob_hint =
-                || text("Drag up/down · Shift for fine adjustment · right-click to reset").size(10);
+            let knob_hint = "Drag up/down · Shift for fine adjustment · right-click to reset";
             let mut controls = column![
                 text(if id == DeckId::A {
                     "CHANNEL A"
@@ -345,14 +340,12 @@ impl App {
                 .color(accent),
                 row![
                     text("TRIM").size(8).color(colors.muted).width(26),
-                    tooltip(
+                    icons::hint(
                         super::knob::knob(0.0..=1.0, deck.gain, 0.8, 0.005, accent, move |value| {
                             Message::Preview(Event::Control(id, DeckControl::Gain(value)))
                         }),
-                        knob_hint(),
-                        tooltip::Position::Bottom
-                    )
-                    .delay(std::time::Duration::from_millis(500)),
+                        knob_hint
+                    ),
                     text(format!("{:.0}", deck.gain * 100.0))
                         .size(9)
                         .font(Font::MONOSPACE)
@@ -368,14 +361,12 @@ impl App {
                 controls = controls.push(
                     row![
                         text(label).size(8).color(colors.muted).width(26),
-                        tooltip(
+                        icons::hint(
                             super::knob::knob(-24.0..=6.0, db, 0.0, 0.1, accent, move |value| {
                                 Message::Preview(Event::Control(id, DeckControl::Eq(band, value)))
                             }),
-                            knob_hint(),
-                            tooltip::Position::Bottom
-                        )
-                        .delay(std::time::Duration::from_millis(500)),
+                            knob_hint
+                        ),
                         text(format!("{db:+.1}"))
                             .size(9)
                             .font(Font::MONOSPACE)
@@ -390,16 +381,15 @@ impl App {
                 column![
                     row![
                         canvas(FaderScale).width(15).height(100),
-                        tooltip(
+                        icons::hint(
                             vertical_slider(0.0..=1.0, deck.fader, move |value| {
                                 Message::Preview(Event::Control(id, DeckControl::Fader(value)))
                             })
                             .default(1.0).step(0.01).shift_step(0.001)
                             .width(30).height(100)
                             .style(move |theme, status| fader_style(theme, status, accent)),
-                            text("Channel volume · Ctrl-click to reset · Shift for fine adjustment").size(10),
-                            tooltip::Position::Bottom
-                        ).delay(std::time::Duration::from_millis(500)),
+                            "Channel volume · Ctrl-click to reset · Shift for fine adjustment"
+                        ),
                         channel_meter(state.decks[id.index()].peak, colors),
                     ].spacing(7).align_y(Alignment::Center),
                     text(format!("LEVEL {:3.0}%", deck.fader * 100.0))
