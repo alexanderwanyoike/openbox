@@ -1,5 +1,5 @@
 use super::appearance::Palette;
-use iced::{Background, Border, Color, Shadow, Vector, gradient, widget::container};
+use iced::{Background, Border, Color, gradient, widget::container};
 
 pub(super) fn card(p: Palette) -> container::Style {
     container::Style {
@@ -8,14 +8,6 @@ pub(super) fn card(p: Palette) -> container::Style {
             color: Color { a: 0.4, ..p.line },
             width: 1.0,
             radius: 12.0.into(),
-        },
-        shadow: Shadow {
-            color: Color {
-                a: 0.08,
-                ..Color::BLACK
-            },
-            offset: Vector::new(0.0, 1.0),
-            blur_radius: 2.0,
         },
         ..Default::default()
     }

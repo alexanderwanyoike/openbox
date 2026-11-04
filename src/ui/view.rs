@@ -104,27 +104,37 @@ impl App {
             .width(Length::Fill)
             .padding([0, 8]),
         );
-        let overlay: Element<'_, Message> = if self.settings_visible {
-            opaque(
-                container(self.settings())
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .style(move |_| panel(colors.bg)),
-            )
-            .into()
-        } else {
-            Space::new().into()
-        };
-        column![
+        let main = column![
             self.header(),
             horizontal(1),
-            stack![body, overlay].height(Length::Fill),
+            body,
             horizontal(1),
             container(status)
                 .padding([7, 14])
                 .style(move |_| panel(colors.panel))
         ]
-        .into()
+        .height(Length::Fill);
+        let overlay: Element<'_, Message> = if self.settings_visible {
+            opaque(
+                container(self.settings())
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .padding(24)
+                    .style(|_| {
+                        panel(Color {
+                            a: 0.45,
+                            ..Color::BLACK
+                        })
+                    }),
+            )
+            .into()
+        } else {
+            Space::new().into()
+        };
+        stack![main, overlay]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     fn header(&self) -> Element<'_, Message> {

@@ -13,7 +13,7 @@ impl App {
     pub(super) fn settings(&self) -> Element<'_, Message> {
         let p = self.preferences.palette();
         let heading = row![
-            text("Settings").size(24),
+            text("Settings").size(15),
             Space::new().width(Length::Fill),
             view::action("Restore defaults", Message::ResetAppearance, true),
             icons::hint(
@@ -87,7 +87,7 @@ impl App {
         }))
         .spacing(7);
         let appearance = column![
-            text("Appearance").size(17),
+            text("Appearance").size(14),
             text("Mode").size(12).color(p.muted),
             modes,
             text("Material").size(12).color(p.muted),
@@ -112,19 +112,35 @@ impl App {
                 .spacing(10),
             );
         }
-        let waveforms = column![text("Waveform").size(17), waves]
+        let waveforms = column![text("Waveform").size(14), waves]
             .spacing(18)
             .width(Length::Fill);
-        container(
-            column![
-                heading,
-                scrollable(row![appearance, waveforms].spacing(36)).height(Length::Fill)
-            ]
-            .spacing(28),
-        )
-        .padding(28)
-        .width(Length::Fill)
+        let navigation = container(column![
+            container(text("Appearance").size(12))
+                .padding([9, 10])
+                .width(Length::Fill)
+                .style(move |_| view::panel(p.selected))
+        ])
+        .padding(12)
+        .width(146)
         .height(Length::Fill)
+        .style(move |_| view::panel(super::surfaces::blend(p.panel, p.bg, 0.15)));
+        let content =
+            container(scrollable(row![appearance, waveforms].spacing(24)).height(Length::Fill))
+                .padding(20)
+                .width(Length::Fill);
+        container(column![
+            container(heading)
+                .padding([10, 16])
+                .height(48)
+                .style(move |_| super::surfaces::chrome(p)),
+            row![navigation, content].height(Length::Fill)
+        ])
+        .width(Length::Fill)
+        .max_width(1180)
+        .height(Length::Fill)
+        .max_height(680)
+        .style(move |_| super::surfaces::card(p))
         .into()
     }
 }
