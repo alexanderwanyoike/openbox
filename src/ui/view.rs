@@ -127,7 +127,6 @@ impl App {
                         })
                     }),
             )
-            .into()
         } else {
             Space::new().into()
         };

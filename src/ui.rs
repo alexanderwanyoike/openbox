@@ -196,10 +196,10 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        if !matches!(
+        if !(matches!(
             message,
             Message::Tick | Message::Preview(_) | Message::OpenSettings | Message::CloseSettings
-        ) && !(self.settings_visible && matches!(message, Message::Keyboard(_)))
+        ) || self.settings_visible && matches!(message, Message::Keyboard(_)))
         {
             self.browser_revision = self.browser_revision.wrapping_add(1);
         }
