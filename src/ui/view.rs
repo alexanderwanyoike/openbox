@@ -404,7 +404,7 @@ impl App {
                     } else {
                         label
                     };
-                    cells = cells.push(container(label).width(width).padding([0, 6]));
+                    cells = cells.push(container(label).width(width).padding([0, 6]).clip(true));
                 }
                 let id = track.id;
                 let check = container(checkbox(selected).size(13).on_toggle(move |_| {
