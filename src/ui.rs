@@ -2,6 +2,7 @@ pub mod appearance;
 mod browser;
 mod icons;
 mod knob;
+mod palette;
 mod players;
 mod preview;
 mod ruler;
@@ -97,7 +98,9 @@ pub enum Message {
     Preview(preview::Event),
     OpenSettings,
     CloseSettings,
-    UiTheme(appearance::UiTheme),
+    Mode(appearance::Mode),
+    Material(appearance::Material),
+    Accent(appearance::Accent),
     WaveformTheme(appearance::WaveformTheme),
     ResetAppearance,
 }
@@ -196,8 +199,16 @@ impl App {
         match message {
             Message::OpenSettings => self.settings_visible = true,
             Message::CloseSettings => self.settings_visible = false,
-            Message::UiTheme(theme) => self.set_preferences(appearance::Preferences {
-                ui_theme: theme,
+            Message::Mode(mode) => self.set_preferences(appearance::Preferences {
+                mode,
+                ..self.preferences
+            }),
+            Message::Material(material) => self.set_preferences(appearance::Preferences {
+                material,
+                ..self.preferences
+            }),
+            Message::Accent(accent) => self.set_preferences(appearance::Preferences {
+                accent,
                 ..self.preferences
             }),
             Message::WaveformTheme(theme) => self.set_preferences(appearance::Preferences {
@@ -1125,7 +1136,7 @@ mod tests {
 
     #[test]
     fn appearance_choices_survive_restart_without_changing_music_or_playback() {
-        use appearance::{Mode, Material, Accent, WaveformTheme};
+        use appearance::{Accent, Material, Mode, WaveformTheme};
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("library.json");
         std::fs::write(&path, r#"{"tracks":[],"playlists":[]}"#).unwrap();
@@ -1157,7 +1168,10 @@ mod tests {
         let revision = app.browser_revision;
         let _ = app.update(Message::Mode(appearance::Mode::Light));
         let _ = app.update(Message::Accent(appearance::Accent::Violet));
-        assert_eq!(app.theme().palette().background, app.preferences.palette().bg);
+        assert_eq!(
+            app.theme().palette().background,
+            app.preferences.palette().bg
+        );
         assert_ne!(app.browser_revision, revision);
     }
 

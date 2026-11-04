@@ -16,7 +16,7 @@ use openbox_audio::{Band, DeckControl, DeckId};
 
 impl App {
     pub(super) fn players(&self) -> Element<'_, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let mut content = column![
             row![
                 self.deck(DeckId::A),
@@ -53,7 +53,7 @@ impl App {
     }
 
     fn deck(&self, id: DeckId) -> Element<'_, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let deck = &self.preview.decks[id.index()];
         let state = &self.preview.snapshot.decks[id.index()];
         let accent = if id == DeckId::A {
@@ -111,7 +111,7 @@ impl App {
                     border: Border {
                         color: accent,
                         width: 1.0,
-                        radius: 3.0.into()
+                        radius: 7.0.into()
                     },
                     ..panel(colors.bg)
                 }),
@@ -316,7 +316,7 @@ impl App {
     }
 
     fn mixer(&self) -> Element<'_, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let state = &self.preview.snapshot;
         let channel = |id: DeckId, accent| {
             let deck = &self.preview.decks[id.index()];

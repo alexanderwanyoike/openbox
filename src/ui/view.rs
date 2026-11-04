@@ -11,11 +11,11 @@ use iced::{
 
 impl App {
     pub fn theme(&self) -> Theme {
-        self.preferences.ui_theme.theme()
+        self.preferences.theme()
     }
 
     pub fn view(&self) -> Element<'_, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let ready = if self.busy { "WORKING" } else { "READY" };
         let mut status = row![
             text(ready)
@@ -116,7 +116,7 @@ impl App {
     }
 
     fn header(&self) -> Element<'_, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let usb_name = self
             .usb_root
             .as_ref()
@@ -144,11 +144,8 @@ impl App {
         };
         container(
             row![
-                text("openbox").size(20).color(colors.ink),
-                text("EXPORT")
-                    .size(10)
-                    .font(Font::MONOSPACE)
-                    .color(colors.accent),
+                text("Openbox").size(20).color(colors.ink),
+                Space::new().width(36),
                 Space::new().width(24),
                 icons::hint(
                     icons::labeled(Icon::Import, "Files", Message::ImportFiles, !self.busy, 85),
@@ -221,7 +218,7 @@ impl App {
     }
 
     fn sidebar(&self) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let mut tree = Column::new().spacing(3);
         for target in [Target::Library, Target::Usb] {
             let collection = self.workspace.collection(target);
@@ -408,7 +405,7 @@ impl App {
     }
 
     fn content(&self) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         if self.selected_folder.is_some() && self.selected_playlist.is_none() {
             return self.folder_content();
         }
@@ -462,7 +459,7 @@ impl App {
     }
 
     fn track_pane(&self, source: bool) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let library = if source {
             Some(&self.workspace.library)
         } else {
@@ -547,7 +544,7 @@ impl App {
     }
 
     fn track_table(&self, source: bool) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let browser = self.browser(source);
         let library = if source {
             Some(&self.workspace.library)
@@ -732,7 +729,7 @@ impl App {
     }
 
     fn selection_bar(&self, source: bool) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let selection = &self.browser(source).selection;
         let count = selection.len();
         let enabled = count > 0 && !self.busy;
@@ -832,7 +829,7 @@ impl App {
     }
 
     fn folder_content(&self) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let library = self.collection();
         let folder = self.selected_folder.and_then(|id| library?.folder(id));
         let path = folder
@@ -907,7 +904,7 @@ impl App {
     }
 
     fn delete_panel(&self) -> Element<'static, Message> {
-        let colors = self.preferences.ui_theme.palette();
+        let colors = self.preferences.palette();
         let label = match &self.deletion {
             Some(Deletion::Playlist(_)) => "Delete this playlist?".into(),
             Some(Deletion::Tracks(ids)) => format!(
@@ -995,7 +992,7 @@ pub(super) fn secondary(theme: &Theme, status: button::Status) -> button::Style 
         border: Border {
             color: colors.line,
             width: 1.0,
-            radius: 3.0.into(),
+            radius: 7.0.into(),
         },
         ..Default::default()
     }
