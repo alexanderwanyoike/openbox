@@ -210,6 +210,14 @@ pub(super) fn rgb(r: u8, g: u8, b: u8) -> Color {
 mod tests {
     use super::*;
 
+    #[test]
+    fn default_surfaces_match_showbiz_native_chrome() {
+        let p = Preferences::default().palette();
+        assert_eq!(p.bg, rgb(16, 16, 16));
+        assert_eq!(p.panel, rgb(27, 27, 27));
+        assert_eq!(super::super::surfaces::chrome(p).background, Some(p.bg.into()));
+    }
+
     fn contrast(a: Color, b: Color) -> f32 {
         let luminance = |c: Color| {
             let linear = |v: f32| {
