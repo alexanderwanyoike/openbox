@@ -76,3 +76,16 @@ fn release_server(bytes: Vec<u8>, digest: String) -> (String, std::thread::JoinH
     });
     (base, thread)
 }
+
+#[test]
+fn corrupt_downloads_leave_the_installed_application_unchanged() {
+    let temp = tempfile::tempdir().unwrap();
+    let installed = temp.path().join("installed-openbox");
+    std::fs::write(&installed, b"working application").unwrap();
+    let (base, server) = release_server(b"damaged download".to_vec(), "a".repeat(64));
+    let client = openbox_updater::Client::with_api_base(&base);
+    let release = client.check("0.1.0").unwrap().unwrap();
+    assert!(client.install("0.1.0", &release, &installed, |_, _| {}).is_err());
+    assert_eq!(std::fs::read(&installed).unwrap(), b"working application");
+    server.join().unwrap();
+}
