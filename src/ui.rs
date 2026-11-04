@@ -193,12 +193,16 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
-        if !matches!(message, Message::Tick | Message::Preview(_)) {
+        if !matches!(
+            message,
+            Message::Tick | Message::Preview(_) | Message::OpenSettings | Message::CloseSettings
+        ) && !(self.settings_visible && matches!(message, Message::Keyboard(_)))
+        {
             self.browser_revision = self.browser_revision.wrapping_add(1);
         }
         match message {
             Message::OpenSettings => self.settings_visible = true,
-            Message::CloseSettings => self.settings_visible = false,
+            Message::CloseSettings => return self.close_settings(),
             Message::Mode(mode) => self.set_preferences(appearance::Preferences {
                 mode,
                 ..self.preferences
@@ -224,7 +228,7 @@ impl App {
                         ..
                     }
                 ) {
-                    self.settings_visible = false;
+                    return self.close_settings();
                 }
             }
             Message::Tick => {
@@ -742,6 +746,11 @@ impl App {
             }
             _ => {}
         }
+        Task::none()
+    }
+
+    fn close_settings(&mut self) -> Task<Message> {
+        self.settings_visible = false;
         Task::none()
     }
 

@@ -90,7 +90,7 @@ impl App {
             waveform: deck.clip.as_ref().map(|c| &c.waveform),
             deck: id,
             position: state.position,
-            playing: state.playing,
+            playing: state.playing && !self.settings_visible,
             rate: state.rate,
             sampled_at: self.preview.sampled_at,
             cue: state.cue,

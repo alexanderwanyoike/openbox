@@ -4,8 +4,8 @@ use browser::ROW_HEIGHT;
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Theme,
     widget::{
-        Column, Row, Space, button, checkbox, column, container, lazy, pick_list, progress_bar,
-        row, rule::horizontal, scrollable, text, text_input, tooltip,
+        Column, Row, Space, button, checkbox, column, container, lazy, opaque, pick_list,
+        progress_bar, row, rule::horizontal, scrollable, stack, text, text_input, tooltip,
     },
 };
 
@@ -90,29 +90,38 @@ impl App {
                     .color(colors.muted),
             );
         }
-        let mut layout = column![self.header(), horizontal(1),];
-        if self.preview.visible && !self.settings_visible {
-            layout = layout.push(self.players()).push(horizontal(1));
+        let mut body = column![].height(Length::Fill);
+        if self.preview.visible {
+            body = body.push(self.players()).push(horizontal(1));
         }
-        layout
-            .extend([
-                if self.settings_visible {
-                    self.settings()
-                } else {
-                    container(lazy(self.browser_revision, move |_| {
-                        row![self.sidebar(), self.content()].height(Length::Fill)
-                    }))
-                    .height(Length::Fill)
+        body = body.push(
+            container(lazy(self.browser_revision, move |_| {
+                row![self.sidebar(), self.content()].height(Length::Fill)
+            }))
+            .height(Length::Fill)
+            .width(Length::Fill),
+        );
+        let overlay: Element<'_, Message> = if self.settings_visible {
+            opaque(
+                container(self.settings())
                     .width(Length::Fill)
-                    .into()
-                },
-                horizontal(1).into(),
-                container(status)
-                    .padding([7, 14])
-                    .style(move |_| panel(colors.panel))
-                    .into(),
-            ])
+                    .height(Length::Fill)
+                    .style(move |_| panel(colors.bg)),
+            )
             .into()
+        } else {
+            Space::new().into()
+        };
+        column![
+            self.header(),
+            horizontal(1),
+            stack![body, overlay].height(Length::Fill),
+            horizontal(1),
+            container(status)
+                .padding([7, 14])
+                .style(move |_| panel(colors.panel))
+        ]
+        .into()
     }
 
     fn header(&self) -> Element<'_, Message> {
