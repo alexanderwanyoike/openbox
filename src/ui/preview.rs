@@ -251,6 +251,17 @@ mod tests {
     use openbox_domain::Library;
 
     #[test]
+    fn buffered_audio_snapshots_describe_the_same_display_position() {
+        let now = Instant::now();
+        let first = openbox_audio::DeckSnapshot { position: 1.08, duration: 10.0, playing: true, rate: 1.0, ..Default::default() };
+        let second = openbox_audio::DeckSnapshot { position: 1.16, ..first };
+        let displayed = now + std::time::Duration::from_millis(100);
+        let a = position_at(first, now + std::time::Duration::from_millis(80), displayed);
+        let b = position_at(second, now + std::time::Duration::from_millis(160), displayed);
+        assert!((a - b).abs() < 0.000001, "New buffer snapped the waveform: {a} -> {b}");
+    }
+
+    #[test]
     fn visual_position_advances_between_audio_snapshots_and_stops_at_pause_and_end() {
         let at = Instant::now();
         let mut snapshot = openbox_audio::DeckSnapshot {
