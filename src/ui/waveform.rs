@@ -466,6 +466,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn moving_ruler_labels_only_damage_the_waveform_viewport() {
+        use canvas::Program;
+        use iced_graphics::{core::Renderer as _, geometry::Renderer as _};
+        let clip = openbox_audio::Clip::from_pcm(vec![1000; 44100 * 2 * 40], 44100).unwrap();
+        let mut renderer = Renderer::new(iced::Font::DEFAULT, 16.0.into());
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(570.0, 174.0));
+        let state = State::default();
+        let mut previous = None;
+        for position in [20.0, 20.01] {
+            let wave = Wave { waveform: Some(&clip.waveform), theme: WaveformTheme::Classic,
+                deck: DeckId::A, position, playing: false, rate: 1.0, sampled_at: Instant::now(),
+                cue: 0.0, span: 4.0, overview: false, color: Color::WHITE, beats: &[] };
+            renderer.reset(Rectangle::new(Point::ORIGIN, Size::new(1440.0, 900.0)));
+            for geometry in wave.draw(&state, &renderer, &Theme::Dark, bounds, mouse::Cursor::Unavailable) { renderer.draw_geometry(geometry); }
+            let current = renderer.layers().to_vec();
+            if let Some(previous) = previous {
+                for (before, after) in std::iter::zip(&previous, &current) {
+                    for damage in iced_tiny_skia::Layer::damage(before, after) {
+                        assert!(damage.width.is_finite() && damage.height.is_finite());
+                        assert!(damage.x + damage.width <= 572.0 && damage.y + damage.height <= 176.0, "Ruler repaint escaped the deck: {damage:?}");
+                    }
+                }
+            }
+            previous = Some(current);
+        }
+    }
+
+    #[test]
     fn switching_waveform_themes_recolors_cached_overviews_without_reloading_audio() {
         use super::super::appearance::WaveformTheme;
         use canvas::Program;

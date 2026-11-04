@@ -53,6 +53,7 @@ tempfile.workspace = true
 openbox-storage.workspace = true
 iced_graphics = "0.14"
 iced_runtime = "0.14"
+iced_tiny_skia = "0.14"
 tiny-skia = { version = "0.11", default-features = false }
 
 [profile.dev]
