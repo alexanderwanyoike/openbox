@@ -226,7 +226,10 @@ mod grid_refresh_tests {
         }
         mixer.sync_to(DeckId::B, DeckId::A).unwrap();
         let before = mixer.snapshot();
-        mixer.set_beat_grid(DeckId::A, BeatGrid::new(121.0, vec![0.0, 0.49, 0.98]).unwrap());
+        mixer.set_beat_grid(
+            DeckId::A,
+            BeatGrid::new(121.0, vec![0.0, 0.49, 0.98]).unwrap(),
+        );
         assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
         assert_eq!(mixer.snapshot().decks[0].position, before.decks[0].position);
         assert_eq!(mixer.snapshot().decks[1].position, before.decks[1].position);
