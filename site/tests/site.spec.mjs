@@ -8,7 +8,10 @@ test("the project site shows the actual workspace and valid release navigation",
   );
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
-  await expect(page.locator("html")).toHaveCSS("background-color", "rgb(242, 242, 242)");
+  await expect(page.locator("html")).toHaveCSS(
+    "background-color",
+    "rgb(242, 242, 242)",
+  );
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page).toHaveTitle("Openbox");
   await expect(page.locator("html")).toHaveCSS(
