@@ -48,6 +48,26 @@ impl WaveformTheme {
             Self::Paper => "Paper",
         }
     }
+    pub(super) fn for_mode(self, mode: Mode) -> WavePalette {
+        let mut p = self.palette();
+        if mode == Mode::Light {
+            p.bg = if self == Self::Paper { rgb(244, 242, 235) } else { rgb(247, 248, 251) };
+            for (index, color) in p.bands.iter_mut().enumerate() {
+                let gain = if index == 2 { 0.45 } else { 0.65 };
+                color.r *= gain; color.g *= gain; color.b *= gain;
+            }
+            p.past = rgb(118, 101, 89);
+            p.text = rgb(53, 64, 80); p.tick = rgb(111, 121, 136);
+            p.bar = rgb(176, 38, 46); p.playhead = rgb(16, 22, 31); p.marker = rgb(187, 89, 0);
+        } else if self == Self::Paper {
+            p.bg = rgb(14, 16, 20);
+            p.bands = [rgb(80, 148, 246), rgb(224, 160, 95), rgb(207, 166, 227)];
+            p.past = rgb(125, 144, 168); p.text = rgb(184, 193, 203); p.tick = rgb(91, 106, 125);
+            p.bar = rgb(246, 77, 81); p.playhead = rgb(247, 247, 237); p.marker = rgb(255, 153, 31);
+        }
+        p
+    }
+
     pub(super) fn palette(self) -> WavePalette {
         let (bg, low, mid, high, past) = match self {
             Self::Classic => (

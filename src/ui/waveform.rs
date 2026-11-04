@@ -1,6 +1,6 @@
 use super::{
     Message,
-    appearance::{WavePalette, WaveformTheme},
+    appearance::{Mode, WavePalette, WaveformTheme},
     preview,
 };
 use iced::{
@@ -12,7 +12,7 @@ use iced::{
 };
 use openbox_audio::{DeckControl, DeckId, Waveform};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -66,7 +66,7 @@ struct Drag {
 pub(super) struct State {
     drag: Option<Drag>,
     overview: canvas::Cache,
-    source: RefCell<Option<(Waveform, WaveformTheme)>>,
+    source: RefCell<Option<(Waveform, WaveformTheme, Mode)>>,
 }
 
 impl canvas::Program<Message> for Wave<'_> {
@@ -144,12 +144,13 @@ impl canvas::Program<Message> for Wave<'_> {
         &self,
         state: &State,
         renderer: &Renderer,
-        _theme: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        let colors = self.theme.palette();
+        let mode = if theme.extended_palette().is_dark { Mode::Dark } else { Mode::Light };
+        let colors = self.theme.for_mode(mode);
         let background = colors.bg;
         frame.fill_rectangle(Point::ORIGIN, bounds.size(), background);
         let Some(waveform) = self.waveform else {
@@ -173,11 +174,11 @@ impl canvas::Program<Message> for Wave<'_> {
         let mut geometries = Vec::with_capacity(3);
         if self.overview {
             let mut source = state.source.borrow_mut();
-            if source.as_ref().is_none_or(|(old, theme)| {
-                *theme != self.theme || !Arc::ptr_eq(&old.peaks, &waveform.peaks)
+            if source.as_ref().is_none_or(|(old, theme, old_mode)| {
+                *theme != self.theme || *old_mode != mode || !Arc::ptr_eq(&old.peaks, &waveform.peaks)
             }) {
                 state.overview.clear();
-                *source = Some((waveform.clone(), self.theme));
+                *source = Some((waveform.clone(), self.theme, mode));
             }
             geometries.push(state.overview.draw(renderer, bounds.size(), |cached| {
                 cached.fill_rectangle(Point::ORIGIN, bounds.size(), background);
@@ -426,14 +427,17 @@ pub(super) fn preview(theme: WaveformTheme) -> iced::Element<'static, Message> {
 
 struct Preview(WaveformTheme);
 
+#[derive(Default)]
+struct PreviewCache { geometry: canvas::Cache, mode: Cell<Option<Mode>> }
+
 impl canvas::Program<Message> for Preview {
-    type State = canvas::Cache;
+    type State = PreviewCache;
 
     fn draw(
         &self,
-        cache: &canvas::Cache,
+        cache: &PreviewCache,
         renderer: &Renderer,
-        _: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         _: mouse::Cursor,
     ) -> Vec<Geometry> {
@@ -453,8 +457,10 @@ impl canvas::Program<Message> for Preview {
                 .collect();
             openbox_audio::Clip::from_pcm(samples, 44100).unwrap()
         });
-        let colors = self.0.palette();
-        vec![cache.draw(renderer, bounds.size(), |frame| {
+        let mode = if theme.extended_palette().is_dark { Mode::Dark } else { Mode::Light };
+        if cache.mode.replace(Some(mode)) != Some(mode) { cache.geometry.clear(); }
+        let colors = self.0.for_mode(mode);
+        vec![cache.geometry.draw(renderer, bounds.size(), |frame| {
             frame.fill_rectangle(Point::ORIGIN, bounds.size(), colors.bg);
             draw_envelope(
                 frame,
