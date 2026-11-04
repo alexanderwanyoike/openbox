@@ -34,6 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let app = App::load(args.library_path(), args.usb).map_err(std::io::Error::other)?;
     iced::application(move || app.clone(), App::update, App::view)
+        .font(include_bytes!("../resources/fonts/Manrope.ttf").as_slice())
+        .default_font(iced::Font::with_name("Manrope Variable"))
         .title("Openbox")
         .theme(App::theme)
         .subscription(App::subscription)

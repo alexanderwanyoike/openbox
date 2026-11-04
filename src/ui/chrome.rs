@@ -36,7 +36,7 @@ impl App {
         let p = self.preferences.palette();
         let caption = self.library_name.as_str();
         let title = mouse_area(
-            container(text(caption).size(11).color(p.muted))
+            container(text(caption).size(11).color(p.ink))
                 .center_x(Length::Fill)
                 .center_y(Length::Fill),
         )
@@ -44,9 +44,15 @@ impl App {
         .on_double_click(Message::Window(WindowAction::Maximize));
         let chrome = container(
             row![
-                row![icons::themed(Icon::Brand, true), text("Openbox").size(13)]
-                    .spacing(7)
-                    .align_y(Alignment::Center),
+                row![
+                    icons::themed(Icon::Brand, true),
+                    text("Openbox").size(13).font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..iced::Font::default()
+                    })
+                ]
+                .spacing(7)
+                .align_y(Alignment::Center),
                 self.application_menu(),
                 title,
                 icons::hint(
