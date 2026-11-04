@@ -32,7 +32,8 @@ license.workspace = true
 description = "Native DJ library and Rekordbox USB management with Iced"
 
 [features]
-default = ["desktop"]
+default = ["desktop", "gpu"]
+gpu = ["desktop", "iced/wgpu"]
 desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio"]
 
 [dependencies]
