@@ -18,6 +18,8 @@ mod shell_tests;
 mod test_render;
 #[cfg(test)]
 mod table_tests;
+#[cfg(test)]
+mod tooltip_tests;
 mod surfaces;
 mod view;
 mod waveform;
