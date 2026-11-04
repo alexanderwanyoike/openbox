@@ -21,6 +21,8 @@ pub(super) fn position_at(
 pub enum Event {
     Toggle,
     Retry,
+    DismissError,
+    ToggleErrorDetails,
     Load(DeckId),
     Ready(Result<Engine, String>),
     Loaded(DeckId, u64, Result<Clip, String>),
@@ -72,7 +74,8 @@ pub(super) struct Preview {
     pub sampled_at: Instant,
     pub crossfade: f32,
     pub master: f32,
-    pub error: Option<String>,
+    pub error: Option<super::preview_error::Failure>,
+    pub error_details: bool,
 }
 
 impl Default for Preview {
@@ -87,6 +90,7 @@ impl Default for Preview {
             crossfade: 0.5,
             master: 0.8,
             error: None,
+            error_details: false,
         }
     }
 }
@@ -102,7 +106,7 @@ impl Preview {
         }
         let generation = deck.generation;
         Task::perform(
-            background(move || Clip::decode(&track.path)),
+            background(move || Clip::decode(&track.path).map_err(|error| error.to_string())),
             move |result| Event::Loaded(id, generation, result),
         )
     }
@@ -112,7 +116,8 @@ impl Preview {
             self.snapshot = engine.snapshot();
             self.sampled_at = Instant::now();
             if let Some(error) = engine.take_error() {
-                self.error = Some(error);
+                self.error = Some(super::preview_error::Failure::output(error));
+                self.error_details = false;
                 self.engine = None;
                 for deck in &mut self.snapshot.decks {
                     deck.playing = false;
@@ -129,6 +134,8 @@ impl Preview {
                     return self.start();
                 }
             }
+            Event::DismissError => { self.error = None; self.error_details = false; }
+            Event::ToggleErrorDetails => self.error_details = !self.error_details,
             Event::Retry if !self.starting => {
                 self.engine = None;
                 return self.start();
@@ -154,7 +161,7 @@ impl Preview {
                         self.engine = Some(engine);
                         self.error = None;
                     }
-                    Err(error) => self.error = Some(error),
+                    Err(error) => { self.error = Some(super::preview_error::Failure::output(error)); self.error_details = false; },
                 }
             }
             Event::Loaded(id, generation, result) => {
@@ -182,7 +189,8 @@ impl Preview {
                     }
                     Err(error) => {
                         deck.pending = None;
-                        self.error = Some(error);
+                        self.error = Some(super::preview_error::Failure::track(error));
+                        self.error_details = false;
                     }
                 }
             }

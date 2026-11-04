@@ -11,6 +11,7 @@ use std::time::Duration;
 
 #[derive(Clone, Copy)]
 pub(super) enum Icon {
+    Warning,
     Brand,
     Library,
     Playlist,
@@ -102,7 +103,7 @@ impl canvas::Program<Message> for Symbol {
         _: mouse::Cursor,
     ) -> Vec<Geometry> {
         let colors = super::appearance::palette(theme);
-        let color = if matches!(self.icon, Icon::Brand) {
+        let color = if matches!(self.icon, Icon::Warning) { colors.danger } else if matches!(self.icon, Icon::Brand) {
             colors.accent
         } else if self.enabled {
             colors.ink
@@ -120,6 +121,12 @@ impl canvas::Program<Message> for Symbol {
             frame.stroke(&path, Stroke::default().with_width(1.5).with_color(color));
         };
         match self.icon {
+            Icon::Warning => {
+                line(&mut frame, &[(8.0,2.0),(15.0,14.0),(1.0,14.0),(8.0,2.0)]);
+                line(&mut frame, &[(8.0,6.0),(8.0,9.0)]);
+                line(&mut frame, &[(8.0,11.0),(8.0,12.0)]);
+            }
+
             Icon::Brand => {
                 frame.stroke(
                     &Path::circle(Point::new(8.0, 6.0), 4.0),

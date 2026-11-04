@@ -44,20 +44,7 @@ impl App {
         ]
         .spacing(8);
         if let Some(error) = &self.preview.error {
-            content = content.push(
-                row![
-                    text(error)
-                        .size(11)
-                        .color(colors.deck_b)
-                        .width(Length::Fill),
-                    action(
-                        "Retry audio",
-                        Message::Preview(Event::Retry),
-                        !self.preview.starting
-                    )
-                ]
-                .align_y(Alignment::Center),
-            );
+            content = content.push(self.preview_error(error));
         }
         container(content)
             .padding(8)

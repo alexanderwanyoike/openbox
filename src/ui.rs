@@ -8,6 +8,7 @@ mod navigation;
 mod palette;
 mod players;
 mod preview;
+mod preview_error;
 #[cfg(test)]
 mod rendering;
 mod ruler;
