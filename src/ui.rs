@@ -14,6 +14,10 @@ mod selection;
 mod settings;
 #[cfg(test)]
 mod shell_tests;
+#[cfg(test)]
+mod test_render;
+#[cfg(test)]
+mod table_tests;
 mod surfaces;
 mod view;
 mod waveform;
