@@ -252,7 +252,7 @@ impl App {
         )
         .id("workspace-toolbar")
         .padding([0, 18])
-        .height(48)
+        .center_y(48)
         .style(move |_| super::surfaces::chrome(p))
         .into()
     }
