@@ -1207,3 +1207,21 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    #[test]
+    fn update_installation_waits_for_usb_work_and_playback_to_finish() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.updates = updates::State::Available(openbox_updater::Release { version: "0.2.0".into(), sha256: "a".repeat(64) });
+        app.busy = true;
+        let _ = app.update(Message::Updates(updates::Event::Install));
+        assert!(matches!(app.updates, updates::State::Available(_)));
+        app.busy = false;
+        app.preview.snapshot.decks[0].playing = true;
+        let _ = app.update(Message::Updates(updates::Event::Install));
+        assert!(matches!(app.updates, updates::State::Available(_)));
+    }
+}
