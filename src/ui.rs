@@ -1125,7 +1125,7 @@ mod tests {
 
     #[test]
     fn appearance_choices_survive_restart_without_changing_music_or_playback() {
-        use appearance::{UiTheme, WaveformTheme};
+        use appearance::{Mode, Material, Accent, WaveformTheme};
         let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("library.json");
         std::fs::write(&path, r#"{"tracks":[],"playlists":[]}"#).unwrap();
@@ -1134,31 +1134,31 @@ mod tests {
         app.preview.snapshot.decks[0].position = 37.5;
         app.preview.snapshot.decks[0].playing = true;
         let _ = app.update(Message::OpenSettings);
-        let _ = app.update(Message::UiTheme(UiTheme::Nord));
+        let _ = app.update(Message::Mode(Mode::Light));
+        let _ = app.update(Message::Material(Material::Slate));
+        let _ = app.update(Message::Accent(Accent::Emerald));
         let _ = app.update(Message::WaveformTheme(WaveformTheme::Spectrum));
         assert_eq!(app.preview.snapshot.decks[0].position, 37.5);
         assert!(app.preview.snapshot.decks[0].playing);
-        assert!(app.settings_visible);
         let _ = app.update(Message::CloseSettings);
         let restored = App::load(path.clone(), None).unwrap();
-        assert_eq!(restored.preferences.ui_theme, UiTheme::Nord);
+        assert_eq!(restored.preferences.mode, Mode::Light);
+        assert_eq!(restored.preferences.material, Material::Slate);
+        assert_eq!(restored.preferences.accent, Accent::Emerald);
         assert_eq!(restored.preferences.waveform_theme, WaveformTheme::Spectrum);
         assert_eq!(std::fs::read(path).unwrap(), original);
     }
 
     #[test]
-    fn each_interface_theme_applies_live_and_invalidates_cached_browser_colors() {
+    fn appearance_changes_invalidate_the_cached_browser() {
         let temp = tempfile::tempdir().unwrap();
         let mut app = App::load(temp.path().join("library.json"), None).unwrap();
-        assert_eq!(appearance::UiTheme::ALL.len(), 10);
         assert_eq!(appearance::WaveformTheme::ALL.len(), 10);
-        for theme in appearance::UiTheme::ALL {
-            let revision = app.browser_revision;
-            let _ = app.update(Message::UiTheme(theme));
-            assert_eq!(app.theme().palette().background, theme.palette().bg);
-            assert_eq!(app.theme().palette().primary, theme.palette().accent);
-            assert_ne!(app.browser_revision, revision);
-        }
+        let revision = app.browser_revision;
+        let _ = app.update(Message::Mode(appearance::Mode::Light));
+        let _ = app.update(Message::Accent(appearance::Accent::Violet));
+        assert_eq!(app.theme().palette().background, app.preferences.palette().bg);
+        assert_ne!(app.browser_revision, revision);
     }
 
     #[test]

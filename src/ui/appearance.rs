@@ -393,3 +393,40 @@ fn mix(a: Color, b: Color, amount: f32) -> Color {
         a: 1.0,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn contrast(a: Color, b: Color) -> f32 {
+        let luminance = |c: Color| {
+            let linear = |v: f32| if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
+            0.2126 * linear(c.r) + 0.7152 * linear(c.g) + 0.0722 * linear(c.b)
+        };
+        let (a, b) = (luminance(a), luminance(b));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+
+    #[test]
+    fn mode_material_and_accent_compose_and_persist_with_readable_text() {
+        let folder = tempfile::tempdir().unwrap();
+        let file = folder.path().join("preferences.json");
+        for mode in Mode::ALL {
+            for material in Material::ALL {
+                for accent in Accent::ALL {
+                    let preferences = Preferences { mode, material, accent, waveform_theme: WaveformTheme::Ice };
+                    preferences.save(&file).unwrap();
+                    assert_eq!(Preferences::load(&file).unwrap(), preferences);
+                    let p = preferences.palette();
+                    assert!(contrast(p.ink, p.panel) >= 7.0);
+                    assert!(contrast(p.muted, p.panel) >= 4.5);
+                    assert!(contrast(p.accent_text, p.accent) >= 4.5);
+                    let high = p.accent.r.max(p.accent.g).max(p.accent.b);
+                    let low = p.accent.r.min(p.accent.g).min(p.accent.b);
+                    assert!((high - low) / high >= 0.7);
+                    assert_eq!(palette(&preferences.theme()).panel, p.panel);
+                }
+            }
+        }
+    }
+}
