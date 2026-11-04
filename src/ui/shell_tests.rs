@@ -12,6 +12,9 @@ fn chrome_is_separate_from_workspace_actions_and_collection_rows_are_inset() {
         fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
             children(self);
         }
+        fn scrollable(&mut self, id: Option<&Id>, bounds: Rectangle, _: Rectangle, _: iced::Vector, _: &mut dyn iced_graphics::core::widget::operation::Scrollable) {
+            if let Some(id) = id { self.0.push((id.clone(), bounds)); }
+        }
         fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
             if let Some(id) = id {
                 self.0.push((id.clone(), bounds));
@@ -44,6 +47,8 @@ fn chrome_is_separate_from_workspace_actions_and_collection_rows_are_inset() {
         assert_eq!(chrome.height, 48.0);
         assert_eq!(toolbar.y, chrome.y + chrome.height);
         assert_eq!(toolbar.height, 48.0);
+        let tree = bounds("playlist-tree");
+        assert!(tree.height >= 260.0, "Creation controls must not crowd out device navigation: {tree:?}");
         let sidebar = bounds("collection-panel");
         let collection = bounds("collection-row");
         assert_eq!(sidebar.width, 212.0);
