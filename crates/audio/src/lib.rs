@@ -1,3 +1,5 @@
+mod decode_error;
+pub use decode_error::DecodeError;
 mod clip;
 mod engine;
 mod mixer;
