@@ -64,7 +64,10 @@ impl App {
                         Icon::Minimize,
                         Message::Window(WindowAction::Minimize),
                         true
-                    ),
+                    )
+                    .width(32)
+                    .height(48)
+                    .padding([16, 8]),
                     "Minimize"
                 ),
                 icons::hint(
@@ -72,7 +75,10 @@ impl App {
                         Icon::Maximize,
                         Message::Window(WindowAction::Maximize),
                         true
-                    ),
+                    )
+                    .width(32)
+                    .height(48)
+                    .padding([16, 8]),
                     "Maximize or restore"
                 ),
                 icons::hint(
@@ -84,7 +90,12 @@ impl App {
             .align_y(Alignment::Center),
         )
         .id("application-chrome")
-        .padding([0, 12])
+        .padding(iced::Padding {
+            left: 12.0,
+            right: 0.0,
+            top: 0.0,
+            bottom: 0.0,
+        })
         .height(48)
         .style(move |_| super::surfaces::chrome(p));
         column![chrome, self.workspace_toolbar()].into()
