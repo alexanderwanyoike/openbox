@@ -1,6 +1,8 @@
 mod clip;
 mod engine;
 mod mixer;
+mod sync;
+pub use sync::{BeatGrid, SyncError};
 
 pub use clip::{Clip, WavePeak, Waveform};
 pub use engine::Engine;
