@@ -33,9 +33,10 @@ description = "Native DJ library and Rekordbox USB management with Iced"
 
 [features]
 default = ["desktop"]
-desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio"]
+desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio", "dep:image"]
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 openbox-domain.workspace = true
 openbox-library.workspace = true
 openbox-rekordbox.workspace = true

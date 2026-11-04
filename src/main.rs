@@ -37,7 +37,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .title("Openbox")
         .theme(App::theme)
         .subscription(App::subscription)
-        .window_size(iced::Size::new(1440.0, 900.0))
+        .window(iced::window::Settings {
+            size: iced::Size::new(1440.0, 900.0),
+            icon: Some(openbox::branding::window_icon().map_err(std::io::Error::other)?),
+            ..Default::default()
+        })
         .run()?;
     Ok(())
 }
