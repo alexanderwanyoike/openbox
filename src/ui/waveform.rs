@@ -511,7 +511,9 @@ mod tests {
             ) {
                 renderer.draw_geometry(geometry);
             }
-            let current = crate::ui::rendering::backend(&mut renderer).layers().to_vec();
+            let current = crate::ui::rendering::backend(&mut renderer)
+                .layers()
+                .to_vec();
             if let Some(previous) = previous {
                 for (before, after) in std::iter::zip(&previous, &current) {
                     for damage in iced_tiny_skia::Layer::damage(before, after) {

@@ -5,9 +5,9 @@ mod knob;
 mod palette;
 mod players;
 mod preview;
-mod ruler;
 #[cfg(test)]
 mod rendering;
+mod ruler;
 mod selection;
 mod settings;
 mod surfaces;
@@ -1155,7 +1155,9 @@ mod tests {
         let mut app = App::load(temp.path().join("library.json"), None).unwrap();
         app.preview.visible = true;
         let clip = openbox_audio::Clip::from_pcm(vec![10000; 44100 * 2 * 60], 44100).unwrap();
-        for deck in &mut app.preview.decks { deck.clip = Some(clip.clone()); }
+        for deck in &mut app.preview.decks {
+            deck.clip = Some(clip.clone());
+        }
         let mut renderer = crate::ui::rendering::new_renderer();
         let bounds = iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(1440.0, 900.0));
         let viewport = iced_graphics::Viewport::with_physical_size(iced::Size::new(1440, 900), 1.0);
@@ -1164,20 +1166,46 @@ mod tests {
         let mut cache = Cache::new();
         let mut previous: Vec<iced_tiny_skia::Layer> = Vec::new();
         for n in 0..20 {
-            for deck in &mut app.preview.snapshot.decks { deck.position = 20.0 + n as f64 / 60.0; deck.duration = 60.0; deck.rate = 1.0; }
+            for deck in &mut app.preview.snapshot.decks {
+                deck.position = 20.0 + n as f64 / 60.0;
+                deck.duration = 60.0;
+                deck.rate = 1.0;
+            }
             let start = std::time::Instant::now();
             let mut ui = UserInterface::build(app.view(), bounds.size(), cache, &mut renderer);
             renderer.reset(bounds);
-            ui.draw(&mut renderer, &app.theme(), &iced_graphics::core::renderer::Style::default(), iced::mouse::Cursor::Unavailable);
-            let layers = crate::ui::rendering::backend(&mut renderer).layers().to_vec();
-            let damage: Vec<_> = if previous.is_empty() { vec![bounds] } else {
-                std::iter::zip(&previous, &layers).flat_map(|(before, after)| iced_tiny_skia::Layer::damage(before, after)).collect()
+            ui.draw(
+                &mut renderer,
+                &app.theme(),
+                &iced_graphics::core::renderer::Style::default(),
+                iced::mouse::Cursor::Unavailable,
+            );
+            let layers = crate::ui::rendering::backend(&mut renderer)
+                .layers()
+                .to_vec();
+            let damage: Vec<_> = if previous.is_empty() {
+                vec![bounds]
+            } else {
+                std::iter::zip(&previous, &layers)
+                    .flat_map(|(before, after)| iced_tiny_skia::Layer::damage(before, after))
+                    .collect()
             };
-            let largest = damage.iter().max_by(|a,b| (a.width*a.height).total_cmp(&(b.width*b.height)));
-            println!("frame {n}: {} damage regions; largest {largest:?}", damage.len());
+            let largest = damage
+                .iter()
+                .max_by(|a, b| (a.width * a.height).total_cmp(&(b.width * b.height)));
+            println!(
+                "frame {n}: {} damage regions; largest {largest:?}",
+                damage.len()
+            );
             let damage = iced_graphics::damage::group(damage, bounds);
-            crate::ui::rendering::backend(&mut renderer).draw(&mut pixels.as_mut(), &mut mask, &viewport, &damage, app.theme().palette().background);
-            println!("paint {:.2}ms", start.elapsed().as_secs_f64()*1000.0);
+            crate::ui::rendering::backend(&mut renderer).draw(
+                &mut pixels.as_mut(),
+                &mut mask,
+                &viewport,
+                &damage,
+                app.theme().palette().background,
+            );
+            println!("paint {:.2}ms", start.elapsed().as_secs_f64() * 1000.0);
             cache = ui.into_cache();
             previous = layers;
         }

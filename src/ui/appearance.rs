@@ -215,7 +215,10 @@ mod tests {
         let p = Preferences::default().palette();
         assert_eq!(p.bg, rgb(16, 16, 16));
         assert_eq!(p.panel, rgb(27, 27, 27));
-        assert_eq!(super::super::surfaces::chrome(p).background, Some(p.bg.into()));
+        assert_eq!(
+            super::super::surfaces::chrome(p).background,
+            Some(p.bg.into())
+        );
     }
 
     fn contrast(a: Color, b: Color) -> f32 {

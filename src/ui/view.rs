@@ -553,8 +553,7 @@ impl App {
             );
         }
         container(column![
-            container(controls)
-                .padding(14),
+            container(controls).padding(14),
             self.track_table(source),
             self.selection_bar(source),
         ])
