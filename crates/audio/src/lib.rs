@@ -128,3 +128,36 @@ mod tests {
         assert!((mixer.snapshot().decks[0].position - 1.216).abs() < 0.0001);
     }
 }
+
+#[cfg(test)]
+mod sync_tests {
+    use super::*;
+    #[test]
+    fn sync_matches_the_leaders_tempo_and_phase_and_manual_pitch_releases_it() {
+        let mut mixer = Mixer::default();
+        for (id, bpm, offset) in [(DeckId::A, 120.0, 0.1), (DeckId::B, 126.0, 0.23)] {
+            mixer.load(id, Clip::from_pcm(vec![1000; 44100 * 2 * 40], 44100).unwrap());
+            let beats = (0..80).map(|n| offset + n as f64 * 60.0 / bpm).collect();
+            mixer.set_beat_grid(id, BeatGrid::new(bpm, beats).unwrap());
+        }
+        mixer.control(DeckId::A, DeckControl::Seek(5.2));
+        mixer.control(DeckId::B, DeckControl::Seek(9.8));
+        mixer.control(DeckId::A, DeckControl::Rate(1.02));
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        let snapshot = mixer.snapshot();
+        assert!((snapshot.decks[1].rate - 120.0 * 1.02 / 126.0).abs() < 1e-9);
+        assert_eq!(snapshot.decks[1].sync_leader, Some(DeckId::A));
+        let phase = |time: f64, bpm: f64, offset: f64| ((time - offset) * bpm / 60.0).rem_euclid(1.0);
+        assert!((phase(snapshot.decks[0].position, 120.0, 0.1) - phase(snapshot.decks[1].position, 126.0, 0.23)).abs() < 1e-6);
+        mixer.control(DeckId::A, DeckControl::PlayPause);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
+        mixer.render(&mut vec![0.0; 44100 * 2 * 10], 44100, 2);
+        let snapshot = mixer.snapshot();
+        let delta = phase(snapshot.decks[0].position, 120.0, 0.1) - phase(snapshot.decks[1].position, 126.0, 0.23);
+        assert!(delta.abs() < 0.001 || (delta.abs() - 1.0).abs() < 0.001);
+        mixer.control(DeckId::A, DeckControl::Rate(1.04));
+        assert!((mixer.snapshot().decks[1].rate - 120.0 * 1.04 / 126.0).abs() < 1e-9);
+        mixer.control(DeckId::B, DeckControl::Rate(1.0));
+        assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
+    }
+}
