@@ -7,9 +7,9 @@
 }
 :root {
   color-scheme: dark;
-  --bg: #0d1015;
-  --panel: #1b2028;
-  --line: #414c5e;
+  --bg: #101010;
+  --panel: #1b1b1b;
+  --line: #303030;
   --ink: #f0f2f6;
   --muted: #b3bbc7;
   --accent: #328dff;
