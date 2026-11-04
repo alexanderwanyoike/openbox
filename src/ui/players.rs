@@ -92,7 +92,7 @@ impl App {
             position: state.position,
             playing: state.playing && !self.settings_visible,
             rate: state.rate,
-            sampled_at: self.preview.sampled_at,
+            sampled_at: state.sampled_at,
             cue: state.cue,
             span: deck.zoom,
             overview,

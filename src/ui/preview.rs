@@ -10,7 +10,7 @@ pub(super) fn position_at(
     now: Instant,
 ) -> f64 {
     let elapsed = if snapshot.playing {
-        now.saturating_duration_since(sampled_at).as_secs_f64() * snapshot.rate
+        if let Some(elapsed) = now.checked_duration_since(sampled_at) { elapsed.as_secs_f64() * snapshot.rate } else { -sampled_at.duration_since(now).as_secs_f64() * snapshot.rate }
     } else {
         0.0
     };
@@ -71,7 +71,6 @@ pub(super) struct Preview {
     pub engine: Option<Engine>,
     pub decks: [Deck; 2],
     pub snapshot: Snapshot,
-    pub sampled_at: Instant,
     pub crossfade: f32,
     pub master: f32,
     pub error: Option<super::preview_error::Failure>,
@@ -86,7 +85,6 @@ impl Default for Preview {
             engine: None,
             decks: [Deck::default(), Deck::default()],
             snapshot: Snapshot::default(),
-            sampled_at: Instant::now(),
             crossfade: 0.5,
             master: 0.8,
             error: None,
@@ -114,7 +112,6 @@ impl Preview {
     pub fn tick(&mut self) {
         if let Some(engine) = &self.engine {
             self.snapshot = engine.snapshot();
-            self.sampled_at = Instant::now();
             if let Some(error) = engine.take_error() {
                 self.error = Some(super::preview_error::Failure::output(error));
                 self.error_details = false;
@@ -206,7 +203,6 @@ impl Preview {
                 if let Some(engine) = &self.engine {
                     engine.control(id, control);
                     self.snapshot = engine.snapshot();
-                    self.sampled_at = Instant::now();
                 }
             }
             Event::Crossfade(value) => {

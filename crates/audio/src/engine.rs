@@ -121,12 +121,16 @@ fn build<T: SizedSample + FromSample<f32>>(
     let mut scratch = [0.0_f32; 4096];
     device.build_output_stream(
         config,
-        move |data: &mut [T], _| {
+        move |data: &mut [T], info| {
             // A busy UI must never block the output callback or allocate on its audio thread.
             let Ok(mut mixer) = mixer.try_lock() else {
                 data.fill(T::EQUILIBRIUM);
                 return;
             };
+            let started = std::time::Instant::now();
+            let timing = info.timestamp();
+            let lead = timing.playback.duration_since(&timing.callback).unwrap_or_default();
+            let duration = std::time::Duration::from_secs_f64(data.len() as f64 / channels as f64 / f64::from(rate));
             for chunk in data.chunks_mut(4096 / channels * channels) {
                 let rendered = &mut scratch[..chunk.len()];
                 mixer.render(rendered, rate, channels);
@@ -134,6 +138,7 @@ fn build<T: SizedSample + FromSample<f32>>(
                     *target = T::from_sample(sample);
                 }
             }
+            mixer.set_render_time(started + lead + duration);
         },
         move |e| {
             *error.lock().unwrap() = Some(format!("Audio output stopped: {e}"));
