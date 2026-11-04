@@ -300,20 +300,41 @@ impl App {
                 text(location.clone()),
                 tooltip::Position::Top
             ),
-            text_input("Playlist or folder name", &self.new_name)
-                .size(12)
-                .padding(8)
-                .on_input(Message::NewName)
-                .on_submit(Message::CreatePlaylist),
             row![
-                action("+ Playlist", Message::CreatePlaylist, can_create).width(Length::Fill),
-                action("+ Folder", Message::CreateFolder, can_create).width(Length::Fill),
+                text_input("New name", &self.new_name)
+                    .size(11)
+                    .padding(7)
+                    .width(Length::Fill)
+                    .on_input(Message::NewName)
+                    .on_submit(Message::CreatePlaylist),
+                icons::hint(
+                    icons::action(Icon::Playlist, Message::CreatePlaylist, can_create),
+                    "Create playlist in this location"
+                ),
+                icons::hint(
+                    icons::action(Icon::Folder, Message::CreateFolder, can_create),
+                    "Create folder in this location"
+                ),
             ]
-            .spacing(6),
+            .spacing(4)
+            .align_y(Alignment::Center),
         ]
         .spacing(7);
         container(column![
             scrollable(tree.padding([8, 9]))
+                .direction(scrollable::Direction::Vertical(
+                    scrollable::Scrollbar::new()
+                        .width(4)
+                        .scroller_width(4)
+                        .margin(2)
+                ))
+                .style(|theme, status| {
+                    let mut style = scrollable::default(theme, status);
+                    let p = super::appearance::palette(theme);
+                    style.vertical_rail.background = None;
+                    style.vertical_rail.scroller.background = p.line.into();
+                    style
+                })
                 .id("playlist-tree")
                 .height(Length::Fill),
             container(create).padding([8, 12]),
