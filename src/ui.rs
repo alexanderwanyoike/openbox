@@ -10,6 +10,8 @@ mod rendering;
 mod ruler;
 mod selection;
 mod settings;
+#[cfg(test)]
+mod shell_tests;
 mod surfaces;
 mod view;
 mod waveform;
