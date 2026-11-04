@@ -19,7 +19,7 @@ fn a_github_check_discovers_the_published_version_without_downloading() {
         let mut request = [0; 4096];
         let n = stream.read(&mut request).unwrap();
         assert!(String::from_utf8_lossy(&request[..n]).starts_with("GET /repos/alexanderwanyoike/openbox/releases/latest "));
-        let body = r#"{"tag_name":"v0.2.0","created_at":"2026-11-04T00:00:00Z","name":"0.2.0","assets":[{"name":"openbox-x86_64-unknown-linux-gnu.tar.gz","browser_download_url":"https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/openbox-x86_64-unknown-linux-gnu.tar.gz","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}"#;
+        let body = r#"{"tag_name":"v0.2.0","created_at":"2026-11-04T00:00:00Z","name":"0.2.0","assets":[{"name":"openbox-x86_64-unknown-linux-gnu.tar.gz","url":"https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/openbox-x86_64-unknown-linux-gnu.tar.gz","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}"#;
         write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
     });
     let client = openbox_updater::Client::with_api_base(&base);
