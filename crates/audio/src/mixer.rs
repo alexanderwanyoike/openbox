@@ -50,6 +50,7 @@ pub struct DeckSnapshot {
     pub duration: f64,
     pub playing: bool,
     pub rate: f64,
+    pub pitch_rate: f64,
     pub peak: f32,
     pub cue: f64,
     pub sync_leader: Option<DeckId>,
@@ -69,6 +70,7 @@ struct Deck {
     cursor: f64,
     playing: bool,
     rate: f64,
+    adjustment: f64,
     gain: f32,
     fader: f32,
     peak: f32,
@@ -87,6 +89,7 @@ impl Default for Deck {
             cursor: 0.0,
             playing: false,
             rate: 1.0,
+            adjustment: 1.0,
             gain: 0.8,
             fader: 1.0,
             peak: 0.0,
@@ -128,6 +131,7 @@ impl Mixer {
         deck.cursor = 0.0;
         deck.playing = false;
         deck.rate = 1.0;
+        deck.adjustment = 1.0;
         deck.peak = 0.0;
         deck.cue = 0.0;
         deck.low = [0.0; 2];
@@ -136,7 +140,7 @@ impl Mixer {
 
     pub fn control(&mut self, id: DeckId, control: DeckControl) {
         let manual = matches!(control, DeckControl::Seek(_) | DeckControl::Rate(_) | DeckControl::Cue | DeckControl::SetCue);
-        if manual { self.decks[id.index()].sync_leader = None; }
+        if manual { self.decks[id.index()].sync_leader = None; self.decks[id.index()].adjustment = 1.0; }
         let deck = &mut self.decks[id.index()];
         match control {
             DeckControl::PlayPause if deck.clip.is_some() => {
@@ -184,7 +188,7 @@ impl Mixer {
     }
 
     pub fn set_beat_grid(&mut self, id: DeckId, grid: BeatGrid) { self.decks[id.index()].grid = Some(grid); }
-    pub fn release_sync(&mut self, id: DeckId) { self.decks[id.index()].sync_leader = None; }
+    pub fn release_sync(&mut self, id: DeckId) { self.decks[id.index()].sync_leader = None; self.decks[id.index()].adjustment = 1.0; }
     pub fn sync_to(&mut self, follower: DeckId, leader: DeckId) -> Result<(), SyncError> {
         if follower == leader { return Err(SyncError::SameDeck); }
         let target = &self.decks[follower.index()];
@@ -198,6 +202,7 @@ impl Mixer {
         let target = &mut self.decks[follower.index()];
         target.sync_leader = Some(leader);
         target.rate = rate;
+        target.adjustment = 1.0;
         target.cursor = position * f64::from(target.clip.as_ref().unwrap().sample_rate);
         target.low = [0.0; 2]; target.upper = [0.0; 2];
         Ok(())
@@ -237,7 +242,8 @@ impl Mixer {
                         .map_or(0.0, |c| d.cursor / f64::from(c.sample_rate)),
                     duration: d.clip.as_ref().map_or(0.0, Clip::duration),
                     playing: d.playing,
-                    rate: d.rate,
+                    rate: d.rate * d.adjustment,
+                    pitch_rate: d.rate,
                     peak: d.peak,
                     sync_leader: d.sync_leader,
                     cue: d
@@ -252,6 +258,18 @@ impl Mixer {
     }
 
     pub fn render(&mut self, output: &mut [f32], sample_rate: u32, channels: usize) {
+        for follower in [DeckId::A, DeckId::B] {
+            let target = &self.decks[follower.index()];
+            let adjustment = if let Some(leader) = target.sync_leader {
+                let source = &self.decks[leader.index()];
+                if target.playing && source.playing {
+                    let phase = |deck: &Deck| deck.grid.as_ref().unwrap().phase(deck.cursor / f64::from(deck.clip.as_ref().unwrap().sample_rate)).0;
+                    let error = (phase(source) - phase(target) + 0.5).rem_euclid(1.0) - 0.5;
+                    (1.0 + error * 0.5).clamp(0.98, 1.02)
+                } else { 1.0 }
+            } else { 1.0 };
+            self.decks[follower.index()].adjustment = adjustment;
+        }
         output.fill(0.0);
         if sample_rate == 0 || channels == 0 {
             return;
@@ -293,7 +311,7 @@ impl Mixer {
                     deck.peak = deck.peak.max(value.abs());
                     *mixed += value * deck.fader * weights[i] * self.master;
                 }
-                deck.cursor += f64::from(clip.sample_rate) / f64::from(sample_rate) * deck.rate;
+                deck.cursor += f64::from(clip.sample_rate) / f64::from(sample_rate) * deck.rate * deck.adjustment;
                 if deck.cursor >= frames as f64 {
                     deck.cursor = frames as f64;
                     deck.playing = false;
