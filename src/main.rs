@@ -39,6 +39,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .subscription(App::subscription)
         .window(iced::window::Settings {
             size: iced::Size::new(1440.0, 900.0),
+            platform_specific: iced::window::settings::PlatformSpecific {
+                application_id: openbox::branding::APPLICATION_ID.into(),
+                ..Default::default()
+            },
             icon: Some(openbox::branding::window_icon().map_err(std::io::Error::other)?),
             ..Default::default()
         })

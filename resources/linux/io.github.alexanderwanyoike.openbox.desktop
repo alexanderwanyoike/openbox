@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Openbox
+Exec=openbox
+Icon=io.github.alexanderwanyoike.openbox
+StartupWMClass=io.github.alexanderwanyoike.openbox
+Categories=AudioVideo;Audio;
+Terminal=false

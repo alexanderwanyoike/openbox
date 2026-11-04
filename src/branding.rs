@@ -1,3 +1,5 @@
+pub const APPLICATION_ID: &str = "io.github.alexanderwanyoike.openbox";
+
 use iced::window::icon::{self, Icon};
 
 pub fn window_icon() -> Result<Icon, String> {
