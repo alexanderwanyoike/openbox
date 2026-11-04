@@ -1,0 +1,20 @@
+name: Branch flow
+on:
+  pull_request:
+    branches: [dev, main]
+permissions:
+  contents: read
+jobs:
+  flow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require main from dev and dev from feature branches
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          if [[ "$BASE" == main && "$HEAD" == dev ]]; then exit 0; fi
+          if [[ "$BASE" == dev && "$HEAD" == feature/* ]]; then exit 0; fi
+          echo 'Expected feature/* -> dev or dev -> main.' >&2
+          exit 1
