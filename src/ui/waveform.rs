@@ -300,6 +300,203 @@ mod tests {
     use super::*;
 
     #[test]
+    fn switching_waveform_themes_recolors_cached_overviews_without_reloading_audio() {
+        use super::super::appearance::WaveformTheme;
+        use canvas::Program;
+        use iced_graphics::{core::Renderer as _, geometry::Renderer as _};
+        let samples = (0..44100)
+            .flat_map(|n| {
+                let value =
+                    ((n as f64 * 80.0 * std::f64::consts::TAU / 44100.0).sin() * 25000.0) as i16;
+                [value, value]
+            })
+            .collect();
+        let clip = openbox_audio::Clip::from_pcm(samples, 44100).unwrap();
+        let mut renderer = Renderer::new(iced::Font::DEFAULT, 16.0.into());
+        let state = State::default();
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(320.0, 80.0));
+        let mut rendered = Vec::new();
+        for theme in WaveformTheme::ALL {
+            let wave = Wave {
+                waveform: Some(&clip.waveform),
+                deck: DeckId::A,
+                position: 0.5,
+                playing: false,
+                rate: 1.0,
+                sampled_at: Instant::now(),
+                cue: 0.0,
+                span: 1.0,
+                overview: true,
+                color: Color::WHITE,
+                beats: &[],
+                theme,
+            };
+            renderer.reset(bounds);
+            for geometry in wave.draw(
+                &state,
+                &renderer,
+                &Theme::Dark,
+                bounds,
+                mouse::Cursor::Unavailable,
+            ) {
+                renderer.draw_geometry(geometry);
+            }
+            let mut pixels = tiny_skia::Pixmap::new(320, 80).unwrap();
+            renderer.draw(
+                &mut pixels.as_mut(),
+                &mut tiny_skia::Mask::new(320, 80).unwrap(),
+                &iced_graphics::Viewport::with_physical_size(iced::Size::new(320, 80), 1.0),
+                &[bounds],
+                Color::BLACK,
+            );
+            let pixels = pixels.data().to_vec();
+            assert!(
+                !rendered.contains(&pixels),
+                "{} reused another theme's cached pixels",
+                theme
+            );
+            rendered.push(pixels);
+        }
+    }
+
+    #[test]
+    fn bass_stays_blue_ahead_of_the_playhead_and_warm_behind_it() {
+        use canvas::Program;
+        use iced_graphics::{core::Renderer as _, geometry::Renderer as _};
+        let samples = (0..44100 * 4)
+            .flat_map(|n| {
+                let value =
+                    ((n as f64 * 80.0 * std::f64::consts::TAU / 44100.0).sin() * 25000.0) as i16;
+                [value, value]
+            })
+            .collect();
+        let clip = openbox_audio::Clip::from_pcm(samples, 44100).unwrap();
+        let wave = Wave {
+            waveform: Some(&clip.waveform),
+            deck: DeckId::A,
+            position: 2.0,
+            cue: 0.0,
+            playing: false,
+            rate: 1.0,
+            sampled_at: Instant::now(),
+            span: 4.0,
+            overview: false,
+            color: Color::WHITE,
+            beats: &[],
+            theme: WaveformTheme::Classic,
+        };
+        let mut renderer = Renderer::new(iced::Font::DEFAULT, 16.0.into());
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(570.0, 174.0));
+        renderer.reset(bounds);
+        for geometry in wave.draw(
+            &State::default(),
+            &renderer,
+            &Theme::Dark,
+            bounds,
+            mouse::Cursor::Unavailable,
+        ) {
+            renderer.draw_geometry(geometry);
+        }
+        let mut pixels = tiny_skia::Pixmap::new(570, 174).unwrap();
+        let mut mask = tiny_skia::Mask::new(570, 174).unwrap();
+        renderer.draw(
+            &mut pixels.as_mut(),
+            &mut mask,
+            &iced_graphics::Viewport::with_physical_size(iced::Size::new(570, 174), 1.0),
+            &[bounds],
+            Color::BLACK,
+        );
+        let mut future_blue = 0;
+        let mut past_warm = 0;
+        // The software renderer writes the native window surface in BGRA order.
+        for (i, pixel) in pixels.data().chunks_exact(4).enumerate() {
+            let x = i % 570;
+            if x > 300 && pixel[0] > 180 && pixel[2] < 50 {
+                future_blue += 1;
+            }
+            if x < 270 && pixel[2] > 180 && pixel[1] > 100 && pixel[0] < 50 {
+                past_warm += 1;
+            }
+        }
+        assert!(
+            future_blue > 100,
+            "Upcoming bass was overpainted: {future_blue} blue pixels"
+        );
+        assert!(past_warm > 100, "Played waveform lost its warm color");
+    }
+
+    #[test]
+    #[ignore = "manual software raster timing harness"]
+    fn profile_waveform_raster() {
+        use canvas::Program;
+        use std::{hint::black_box, time::Instant};
+        let samples = (0..44100 * 120 * 2)
+            .map(|n| {
+                let t = (n / 2) as f32 / 44100.0;
+                ((t * 440.0 * std::f32::consts::TAU).sin()
+                    * (0.15 + 0.7 * (-20.0 * (t % 0.5)).exp())
+                    * 32767.0) as i16
+            })
+            .collect();
+        let clip = openbox_audio::Clip::from_pcm(samples, 44100).unwrap();
+        let mut renderer = Renderer::new(iced::Font::DEFAULT, 16.0.into());
+        let mut pixels = tiny_skia::Pixmap::new(570, 174).unwrap();
+        let mut mask = tiny_skia::Mask::new(570, 174).unwrap();
+        let viewport = iced_graphics::Viewport::with_physical_size(iced::Size::new(570, 174), 1.0);
+        use iced_graphics::core::Renderer as _;
+        use iced_graphics::geometry::Renderer as _;
+        for overview in [true, false] {
+            let state = State::default();
+            let mut timings = Vec::new();
+            for n in 0..240 {
+                let wave = Wave {
+                    waveform: Some(&clip.waveform),
+                    deck: DeckId::A,
+                    position: 20.0 + n as f64 / 60.0,
+                    cue: 0.0,
+                    playing: false,
+                    rate: 1.0,
+                    sampled_at: Instant::now(),
+                    span: 16.0,
+                    overview,
+                    color: Color::from_rgb(0.25, 0.65, 0.98),
+                    beats: &[],
+                    theme: WaveformTheme::Classic,
+                };
+                let start = Instant::now();
+                let bounds = Rectangle::new(
+                    Point::ORIGIN,
+                    Size::new(570.0, if overview { 28.0 } else { 174.0 }),
+                );
+                renderer.reset(bounds);
+                for geometry in wave.draw(
+                    &state,
+                    &renderer,
+                    &Theme::Dark,
+                    bounds,
+                    mouse::Cursor::Unavailable,
+                ) {
+                    renderer.draw_geometry(geometry);
+                }
+                renderer.draw(
+                    &mut pixels.as_mut(),
+                    &mut mask,
+                    &viewport,
+                    &[bounds],
+                    Color::BLACK,
+                );
+                black_box(pixels.data());
+                timings.push(start.elapsed().as_secs_f64() * 1000.0);
+            }
+            timings.sort_by(f64::total_cmp);
+            println!(
+                "{overview:?}: raster p50={:.3}ms p95={:.3}ms",
+                timings[120], timings[228]
+            );
+        }
+    }
+
+    #[test]
     fn overview_clicks_and_zoomed_waveform_drags_seek_the_correct_audio_time() {
         let overview = Viewport::new(20.0, 100.0, 16.0, true);
         assert_eq!(overview.seek_at(0.75), 75.0);

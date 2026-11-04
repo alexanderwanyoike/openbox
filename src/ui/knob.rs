@@ -211,3 +211,53 @@ impl canvas::Program<Message> for Knob<'_> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use canvas::Program;
+
+    #[test]
+    fn consecutive_drags_adjust_the_knob_without_becoming_a_double_click_reset() {
+        let knob = Knob {
+            range: 0.0..=1.0,
+            value: 0.8,
+            default: 0.8,
+            step: 0.01,
+            accent: Color::WHITE,
+            on_change: Box::new(|value| {
+                Message::Preview(super::super::preview::Event::Master(value))
+            }),
+        };
+        let mut state = State::default();
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(30.0, 30.0));
+        let cursor = |y| mouse::Cursor::Available(Point::new(15.0, y));
+        let press = canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let release = canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
+        assert!(
+            knob.update(&mut state, &press, bounds, cursor(15.0))
+                .unwrap()
+                .into_inner()
+                .0
+                .is_none()
+        );
+        let movement = canvas::Event::Mouse(mouse::Event::CursorMoved {
+            position: Point::new(15.0, 35.0),
+        });
+        assert!(
+            knob.update(&mut state, &movement, bounds, cursor(35.0))
+                .unwrap()
+                .into_inner()
+                .0
+                .is_some()
+        );
+        let _ = knob.update(&mut state, &release, bounds, cursor(35.0));
+        assert!(
+            knob.update(&mut state, &press, bounds, cursor(15.0))
+                .unwrap()
+                .into_inner()
+                .0
+                .is_none()
+        );
+    }
+}

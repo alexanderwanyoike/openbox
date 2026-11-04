@@ -1069,6 +1069,143 @@ mod tests {
     use super::*;
 
     #[test]
+    fn appearance_choices_survive_restart_without_changing_music_or_playback() {
+        use appearance::{UiTheme, WaveformTheme};
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("library.json");
+        std::fs::write(&path, r#"{"tracks":[],"playlists":[]}"#).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let mut app = App::load(path.clone(), None).unwrap();
+        app.preview.snapshot.decks[0].position = 37.5;
+        app.preview.snapshot.decks[0].playing = true;
+        let _ = app.update(Message::OpenSettings);
+        let _ = app.update(Message::UiTheme(UiTheme::Nord));
+        let _ = app.update(Message::WaveformTheme(WaveformTheme::Spectrum));
+        assert_eq!(app.preview.snapshot.decks[0].position, 37.5);
+        assert!(app.preview.snapshot.decks[0].playing);
+        assert!(app.settings_visible);
+        let _ = app.update(Message::CloseSettings);
+        let restored = App::load(path.clone(), None).unwrap();
+        assert_eq!(restored.preferences.ui_theme, UiTheme::Nord);
+        assert_eq!(restored.preferences.waveform_theme, WaveformTheme::Spectrum);
+        assert_eq!(std::fs::read(path).unwrap(), original);
+    }
+
+    #[test]
+    fn each_interface_theme_applies_live_and_invalidates_cached_browser_colors() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        assert_eq!(appearance::UiTheme::ALL.len(), 10);
+        assert_eq!(appearance::WaveformTheme::ALL.len(), 10);
+        for theme in appearance::UiTheme::ALL {
+            let revision = app.browser_revision;
+            let _ = app.update(Message::UiTheme(theme));
+            assert_eq!(app.theme().palette().background, theme.palette().bg);
+            assert_eq!(app.theme().palette().primary, theme.palette().accent);
+            assert_ne!(app.browser_revision, revision);
+        }
+    }
+
+    #[test]
+    fn the_library_keeps_a_visible_viewport_when_the_players_are_toggled() {
+        use iced_graphics::core::{
+            Rectangle, Vector,
+            widget::{Id, Operation, operation::Scrollable},
+        };
+        use iced_runtime::user_interface::{Cache, UserInterface};
+        struct Viewport(Option<Rectangle>);
+        impl Operation for Viewport {
+            fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+                children(self);
+            }
+            fn scrollable(
+                &mut self,
+                id: Option<&Id>,
+                bounds: Rectangle,
+                _: Rectangle,
+                _: Vector,
+                _: &mut dyn Scrollable,
+            ) {
+                if id == Some(&Id::new("main-tracks")) {
+                    self.0 = Some(bounds);
+                }
+            }
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.workspace
+            .library
+            .import("track.wav".into(), "Visible track".into(), "Artist".into());
+        let mut renderer = iced::Renderer::new(iced::Font::DEFAULT, 16.0.into());
+        let mut cache = Cache::new();
+        for visible in [false, true, false] {
+            app.preview.visible = visible;
+            let mut ui = UserInterface::build(
+                app.view(),
+                iced::Size::new(1440.0, 900.0),
+                cache,
+                &mut renderer,
+            );
+            let mut query = Viewport(None);
+            ui.operate(&renderer, &mut query);
+            assert!(query.0.unwrap().height > 150.0);
+            cache = ui.into_cache();
+        }
+    }
+
+    #[test]
+    fn playback_and_mixer_input_reuse_the_browser_until_its_content_changes() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        let version = app.browser_revision;
+        let _ = app.update(Message::Tick);
+        let _ = app.update(Message::Preview(preview::Event::Control(
+            openbox_audio::DeckId::A,
+            openbox_audio::DeckControl::Fader(0.5),
+        )));
+        assert_eq!(app.browser_revision, version);
+        let _ = app.update(Message::Search("house".into()));
+        assert_ne!(app.browser_revision, version);
+    }
+
+    #[test]
+    #[ignore = "manual library view timing harness"]
+    fn profile_library_view() {
+        use std::{hint::black_box, time::Instant};
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        for n in 0..5000 {
+            app.workspace.library.import(
+                format!("{n}.wav").into(),
+                format!("House {n}"),
+                "Artist".into(),
+            );
+        }
+        let _ = app.update(Message::Search("house".into()));
+        let _ = app.update(Message::Sort(false, SortColumn::Title));
+        let mut times = Vec::new();
+        let mut renderer = iced::Renderer::new(iced::Font::DEFAULT, 16.0.into());
+        let mut cache = iced_runtime::user_interface::Cache::new();
+        for n in 0..240 {
+            let start = Instant::now();
+            let _ = app.update(Message::Preview(preview::Event::Master(n as f32 / 240.0)));
+            let ui = iced_runtime::user_interface::UserInterface::build(
+                app.view(),
+                iced::Size::new(1440.0, 900.0),
+                cache,
+                &mut renderer,
+            );
+            cache = black_box(ui.into_cache());
+            times.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        times.sort_by(f64::total_cmp);
+        println!(
+            "5000 sorted/filtered tracks: view p50={:.3}ms p95={:.3}ms",
+            times[120], times[228]
+        );
+    }
+
+    #[test]
     fn completed_reanalysis_refreshes_loaded_deck_metadata_without_moving_playback() {
         let dir = tempfile::tempdir().unwrap();
         let mut app = App::load(dir.path().join("library.json"), None).unwrap();

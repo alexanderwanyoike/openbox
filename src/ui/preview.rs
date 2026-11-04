@@ -225,6 +225,27 @@ mod tests {
     use openbox_domain::Library;
 
     #[test]
+    fn visual_position_advances_between_audio_snapshots_and_stops_at_pause_and_end() {
+        let at = Instant::now();
+        let mut snapshot = openbox_audio::DeckSnapshot {
+            position: 10.0,
+            duration: 12.0,
+            playing: true,
+            rate: 1.08,
+            ..Default::default()
+        };
+        let later = at + std::time::Duration::from_millis(50);
+        assert!((position_at(snapshot, at, later) - 10.054).abs() < 0.000001);
+        snapshot.playing = false;
+        assert_eq!(position_at(snapshot, at, later), 10.0);
+        snapshot.playing = true;
+        assert_eq!(
+            position_at(snapshot, at, at + std::time::Duration::from_secs(5)),
+            12.0
+        );
+    }
+
+    #[test]
     fn loading_another_song_keeps_a_stale_decoder_result_out_of_the_deck() {
         let mut library = Library::default();
         let a = library.import("a.wav".into(), "First".into(), String::new());
