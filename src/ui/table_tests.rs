@@ -35,3 +35,21 @@ fn every_waveform_palette_follows_the_application_mode() {
         }
     }
 }
+
+#[test]
+fn decoder_diagnostics_do_not_replace_the_default_error_notice() {
+    let temp = tempfile::tempdir().unwrap();
+    let render = |diagnostics: &str| {
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.preview.visible = true;
+        let id = app.workspace.library.import("missing.mp3".into(), "Missing track".into(), String::new());
+        let track = app.workspace.library.track(id).unwrap().clone();
+        let _ = app.preview.load(openbox_audio::DeckId::A, track);
+        let generation = app.preview.decks[0].generation;
+        let _ = app.preview.update(super::preview::Event::Loaded(openbox_audio::DeckId::A, generation, Err(diagnostics.into())));
+        super::test_render::render(&app, iced::mouse::Cursor::Unavailable)
+    };
+    let a = render("Cannot preview this file: [in#0 @ 0x12345] Error opening input");
+    let b = render("Cannot preview this file: [in#0 @ 0x98765] Different decoder output");
+    assert!(a.data() == b.data(), "Raw decoder output leaked into the default error presentation");
+}
