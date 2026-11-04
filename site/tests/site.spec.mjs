@@ -8,7 +8,10 @@ test("the project site shows the actual workspace and valid release navigation",
   );
   await page.goto("/");
   await expect(page).toHaveTitle("Openbox");
-  await expect(page.locator("html")).toHaveCSS("background-color", "rgb(16, 16, 16)");
+  await expect(page.locator("html")).toHaveCSS(
+    "background-color",
+    "rgb(16, 16, 16)",
+  );
   await expect(
     page.getByRole("heading", { name: "Openbox", exact: true }),
   ).toBeVisible();
