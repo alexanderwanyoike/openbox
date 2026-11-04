@@ -205,9 +205,9 @@ footer span {
 @media (prefers-color-scheme: light) {
   :root {
     color-scheme: light;
-    --bg: #d7dce3;
-    --panel: #f8f9fb;
-    --line: #b8c1ce;
+    --bg: #f2f2f2;
+    --panel: #ffffff;
+    --line: #dddddd;
     --ink: #18212d;
     --muted: #49525f;
     --accent: #0066eb;
