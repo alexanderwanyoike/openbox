@@ -163,3 +163,34 @@ mod sync_tests {
         assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
     }
 }
+
+#[cfg(test)]
+mod sync_lock_tests {
+    use super::*;
+    #[test]
+    fn a_synced_deck_corrects_phase_drift_without_jumping_its_playhead() {
+        let mut mixer = Mixer::default();
+        for id in [DeckId::A, DeckId::B] {
+            mixer.load(id, Clip::from_pcm(vec![1000; 1000 * 2 * 60], 1000).unwrap());
+            let beats = (0..120).map(|n| {
+                let position = n as f64 * 0.5;
+                if id == DeckId::B && n > 10 { position + (n - 10) as f64 * 0.005 } else { position }
+            }).collect();
+            mixer.set_beat_grid(id, BeatGrid::new(120.0, beats).unwrap());
+        }
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        mixer.control(DeckId::A, DeckControl::PlayPause);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
+        let mut output = vec![0.0; 100];
+        let mut previous = 0.0;
+        for _ in 0..400 {
+            mixer.render(&mut output, 1000, 2);
+            let position = mixer.snapshot().decks[1].position;
+            assert!((position - previous - 0.05).abs() < 0.002);
+            previous = position;
+        }
+        let position = mixer.snapshot().decks[1].position;
+        let phase = ((position - 5.0) / 0.505).rem_euclid(1.0);
+        assert!(phase < 0.04 || phase > 0.96, "Follower drifted to phase {phase}");
+    }
+}
