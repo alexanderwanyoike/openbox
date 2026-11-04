@@ -60,6 +60,7 @@ pub(super) struct Preview {
     pub leader: DeckId,
     pub crossfade: f32,
     pub master: f32,
+    pub sync_error: Option<String>,
     pub error: Option<String>,
 }
 
@@ -74,6 +75,7 @@ impl Default for Preview {
             leader: DeckId::A,
             crossfade: 0.5,
             master: 0.8,
+            sync_error: None,
             error: None,
         }
     }
@@ -131,10 +133,10 @@ impl Preview {
                             let deck = &self.decks[id.index()];
                             if let Some(clip) = &deck.clip {
                                 engine.load(id, clip.clone());
-                                if let Some(track) = &deck.track {
-                                    if let Ok(grid) = beat_grid(track) {
-                                        engine.set_beat_grid(id, grid);
-                                    }
+                                if let Some(track) = &deck.track
+                                    && let Ok(grid) = beat_grid(track)
+                                {
+                                    engine.set_beat_grid(id, grid);
                                 }
                             }
                             engine.control(id, DeckControl::Gain(deck.gain));
@@ -162,10 +164,10 @@ impl Preview {
                     Ok(clip) => {
                         if let Some(engine) = &self.engine {
                             engine.load(id, clip.clone());
-                            if let Some(track) = &deck.pending {
-                                if let Ok(grid) = beat_grid(track) {
-                                    engine.set_beat_grid(id, grid);
-                                }
+                            if let Some(track) = &deck.pending
+                                && let Ok(grid) = beat_grid(track)
+                            {
+                                engine.set_beat_grid(id, grid);
                             }
                         }
                         deck.track = deck.pending.take();
@@ -212,10 +214,10 @@ impl Preview {
                     if self.snapshot.decks[id.index()].sync_leader.is_some() {
                         engine.release_sync(id);
                     } else if let Err(error) = engine.sync_to(id, self.leader) {
-                        self.error = Some(error.to_string());
+                        self.sync_error = Some(error.to_string());
                         return Task::none();
                     }
-                    self.error = None;
+                    self.sync_error = None;
                     self.tick();
                 }
             }
@@ -255,6 +257,28 @@ impl Preview {
     }
 }
 
+pub(super) fn beat_grid(
+    track: &Track,
+) -> Result<openbox_audio::BeatGrid, openbox_audio::SyncError> {
+    let bpm = track
+        .details
+        .bpm
+        .ok_or(openbox_audio::SyncError::MissingGrid)?;
+    let analysis = track
+        .details
+        .analysis
+        .as_ref()
+        .ok_or(openbox_audio::SyncError::MissingGrid)?;
+    openbox_audio::BeatGrid::new(
+        bpm,
+        analysis
+            .beats
+            .iter()
+            .map(|beat| beat.time_seconds)
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,24 +302,4 @@ mod tests {
         assert!(!preview.decks[0].loading);
         assert_eq!(preview.decks[0].track.as_ref().unwrap().title, "Second");
     }
-}
-
-fn beat_grid(track: &Track) -> Result<openbox_audio::BeatGrid, openbox_audio::SyncError> {
-    let bpm = track
-        .details
-        .bpm
-        .ok_or(openbox_audio::SyncError::MissingGrid)?;
-    let analysis = track
-        .details
-        .analysis
-        .as_ref()
-        .ok_or(openbox_audio::SyncError::MissingGrid)?;
-    openbox_audio::BeatGrid::new(
-        bpm,
-        analysis
-            .beats
-            .iter()
-            .map(|beat| beat.time_seconds)
-            .collect(),
-    )
 }

@@ -69,6 +69,9 @@ impl Engine {
     pub fn sync_to(&self, follower: DeckId, leader: DeckId) -> Result<(), SyncError> {
         self.0.mixer.lock().unwrap().sync_to(follower, leader)
     }
+    pub fn clear_beat_grid(&self, deck: DeckId) {
+        self.0.mixer.lock().unwrap().clear_beat_grid(deck);
+    }
     pub fn release_sync(&self, deck: DeckId) {
         self.0.mixer.lock().unwrap().release_sync(deck);
     }

@@ -204,7 +204,17 @@ impl Mixer {
     }
 
     pub fn set_beat_grid(&mut self, id: DeckId, grid: BeatGrid) {
+        self.clear_beat_grid(id);
         self.decks[id.index()].grid = Some(grid);
+    }
+    pub fn clear_beat_grid(&mut self, id: DeckId) {
+        for (index, deck) in self.decks.iter_mut().enumerate() {
+            if index == id.index() || deck.sync_leader == Some(id) {
+                deck.sync_leader = None;
+                deck.adjustment = 1.0;
+            }
+        }
+        self.decks[id.index()].grid = None;
     }
     pub fn release_sync(&mut self, id: DeckId) {
         self.decks[id.index()].sync_leader = None;
