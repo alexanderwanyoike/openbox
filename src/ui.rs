@@ -3,6 +3,7 @@ mod browser;
 mod chrome;
 mod icons;
 mod knob;
+mod navigation;
 mod palette;
 mod players;
 mod preview;
