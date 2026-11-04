@@ -1,2 +1,7 @@
 /target/
 /.prototype/
+
+/node_modules/
+/site-dist/
+/test-results/
+/site/artifacts/
