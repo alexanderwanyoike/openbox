@@ -36,7 +36,7 @@ async function start() {
   window = undefined;
   app = spawn(binary, ['--library', library], { stdio: ['ignore', 'ignore', 'pipe'] });
   app.stderr.on('data', data => { logs += data; });
-  await waitFor(() => { window = x('search', '--onlyvisible', '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Window did not open');
+  await waitFor(() => { window = x('search', '--onlyvisible', '--pid', String(app.pid), '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Window did not open');
   x('windowfocus', window);
   await delay(400);
 }
@@ -46,48 +46,48 @@ try {
   await start();
   await click(400, 187);
   await click(430, 24);
-  await click(550, 81);
-  await click(1390, 81);
+  await click(550, 89);
+  await click(1390, 89);
   await delay(1200);
-  await click(195, 145);
-  await click(1107, 145);
+  await click(195, 153);
+  await click(1107, 153);
   await capture('rulers-classic');
   x('mousemove', '--window', window, '1000', '650'); await delay(120);
   x('click', '--repeat', '8', '--delay', '40', '5'); await delay(1500);
   await click(400, 600);
-  await click(550, 81);
+  await click(550, 89);
   await delay(500);
   await capture('settings-library-scrolled');
   await click(1410, 24);
   x('key', 'Escape'); await delay(800);
   await click(400, 600);
-  await click(550, 81);
+  await click(550, 89);
   await delay(500);
   await capture('settings-library-returned');
-  const rows = name => execFileSync('convert', [join(screenshots, `${name}.png`), '-crop', '240x18+96+65', 'gray:-']);
+  const rows = name => execFileSync('convert', [join(screenshots, `${name}.png`), '-crop', '240x18+102+73', 'gray:-']);
   const retained = rows('settings-library-returned').equals(rows('settings-library-scrolled'));
   await click(1410, 24);
   await capture('settings-initial');
   assert.ok(retained, 'Returning from Settings changed the track at the same visible row');
   if (!process.env.CAPTURE_ONLY) {
-    for (const [mode, x] of [['dark', 200], ['light', 80]]) {
-      await click(x, 230);
+    for (const [mode, x] of [['dark', 470], ['light', 350]]) {
+      await click(x, 266);
       await waitFor(() => preferences().mode === mode, `Mode ${mode} did not apply`);
     }
-    for (const [n, material] of ['aluminium', 'ceramic', 'slate', 'graphite', 'paper', 'copper', 'carbon'].entries()) {
-      await click(108 + (n % 4) * 171, 344 + Math.floor(n / 4) * 96);
+    for (const [n, material] of ['native', 'aluminium', 'ceramic', 'slate', 'graphite', 'paper', 'copper', 'carbon'].entries()) {
+      await click(353 + (n % 4) * 123, 379 + Math.floor(n / 4) * 96);
       await waitFor(() => preferences().material === material, `Material ${material} did not apply`);
     }
     for (const [n, accent] of ['blue', 'cobalt', 'emerald', 'vermilion', 'violet', 'amber'].entries()) {
-      await click(80 + n * 113, 565);
+      await click(333 + n * 82, 600);
       await waitFor(() => preferences().accent === accent, `Accent ${accent} did not apply`);
     }
     for (const [n, waveform] of ['classic', 'spectrum', 'ice', 'ember', 'acid', 'violet', 'nord', 'dracula', 'mono', 'paper'].entries()) {
-      await click(900 + (n % 2) * 345, 220 + Math.floor(n / 2) * 92);
+      await click(924 + (n % 2) * 247, 255 + Math.floor(n / 2) * 92);
       await waitFor(() => preferences().waveform_theme === waveform, `Waveform ${waveform} did not apply`);
     }
-    await click(108, 344);
-    await click(80, 565);
+    await click(353, 379);
+    await click(333, 600);
     await capture('settings-light');
     x('key', 'Escape'); await delay(800);
     await capture('rulers-paper');
@@ -95,14 +95,14 @@ try {
     assert.ok(pixel.match(/\d+/g)?.map(Number).slice(0, 3).every(n => n > 200), `Library did not recolor: ${pixel}`);
     await stop();
     await start();
-    assert.deepEqual(preferences(), { mode: 'light', material: 'aluminium', accent: 'blue', waveform_theme: 'paper' });
+    assert.deepEqual(preferences(), { mode: 'light', material: 'native', accent: 'blue', waveform_theme: 'paper' });
     await click(1410, 24);
     await capture('settings-restored');
-    await click(1310, 105);
-    await waitFor(() => preferences().mode === 'dark' && preferences().material === 'aluminium' && preferences().accent === 'blue' && preferences().waveform_theme === 'classic', 'Defaults did not restore');
+    await click(1195, 134);
+    await waitFor(() => preferences().mode === 'dark' && preferences().material === 'native' && preferences().accent === 'blue' && preferences().waveform_theme === 'classic', 'Defaults did not restore');
     await capture('settings-defaults');
-    assert.deepEqual(readFileSync(music), source);
-    assert.deepEqual(readFileSync(library), originalLibrary);
-    console.log('Native settings smoke passed: light/dark modes, seven materials, six accents, ten waveforms, retained browser row, restart persistence, defaults, unchanged library and audio.');
+    assert.ok(readFileSync(music).equals(source));
+    assert.ok(readFileSync(library).equals(originalLibrary));
+    console.log('Native settings smoke passed: light/dark modes, eight materials, six accents, ten waveforms, retained browser row, restart persistence, defaults, unchanged library and audio.');
   }
 } finally { if (app?.exitCode === null) await stop(); }
