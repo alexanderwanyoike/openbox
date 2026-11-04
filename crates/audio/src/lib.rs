@@ -208,8 +208,27 @@ mod sync_lock_tests {
         let position = mixer.snapshot().decks[1].position;
         let phase = ((position - 5.0) / 0.505).rem_euclid(1.0);
         assert!(
-            phase < 0.04 || phase > 0.96,
+            !(0.04..=0.96).contains(&phase),
             "Follower drifted to phase {phase}"
         );
+    }
+}
+
+#[cfg(test)]
+mod grid_refresh_tests {
+    use super::*;
+    #[test]
+    fn replacing_analysis_releases_sync_without_moving_either_deck() {
+        let mut mixer = Mixer::default();
+        for id in [DeckId::A, DeckId::B] {
+            mixer.load(id, Clip::from_pcm(vec![1000; 20000], 1000).unwrap());
+            mixer.set_beat_grid(id, BeatGrid::new(120.0, vec![0.0, 0.5, 1.0]).unwrap());
+        }
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        let before = mixer.snapshot();
+        mixer.set_beat_grid(DeckId::A, BeatGrid::new(121.0, vec![0.0, 0.49, 0.98]).unwrap());
+        assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
+        assert_eq!(mixer.snapshot().decks[0].position, before.decks[0].position);
+        assert_eq!(mixer.snapshot().decks[1].position, before.decks[1].position);
     }
 }
