@@ -25,6 +25,7 @@ impl fmt::Display for Mode {
 #[serde(rename_all = "snake_case")]
 pub enum Material {
     #[default]
+    Native,
     Aluminium,
     Ceramic,
     Slate,
@@ -34,7 +35,8 @@ pub enum Material {
     Carbon,
 }
 impl Material {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
+        Self::Native,
         Self::Aluminium,
         Self::Ceramic,
         Self::Slate,
@@ -45,6 +47,7 @@ impl Material {
     ];
     pub fn name(self) -> &'static str {
         match self {
+            Self::Native => "Native",
             Self::Aluminium => "Aluminium",
             Self::Ceramic => "Ceramic",
             Self::Slate => "Slate",
@@ -130,6 +133,8 @@ pub(super) struct Palette {
 
 pub(super) fn compose(mode: Mode, material: Material, accent: Accent) -> Palette {
     let (bg, panel, raised, line) = match (material, mode) {
+        (Material::Native, Mode::Light) => (0xf2f2f2, 0xffffff, 0xe9e9e9, 0xdddddd),
+        (Material::Native, Mode::Dark) => (0x101010, 0x1b1b1b, 0x242424, 0x303030),
         (Material::Aluminium, Mode::Light) => (0xd7dce3, 0xf8f9fb, 0xe7ebf0, 0xb8c1ce),
         (Material::Aluminium, Mode::Dark) => (0x0d1015, 0x1b2028, 0x2b3340, 0x414c5e),
         (Material::Ceramic, Mode::Light) => (0xdedbd4, 0xfffdf8, 0xebe7df, 0xc4bbac),

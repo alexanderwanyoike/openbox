@@ -1,5 +1,5 @@
 use super::appearance::Palette;
-use iced::{Background, Border, Color, gradient, widget::container};
+use iced::{Border, Color, widget::container};
 
 pub(super) fn card(p: Palette) -> container::Style {
     container::Style {
@@ -14,14 +14,8 @@ pub(super) fn card(p: Palette) -> container::Style {
 }
 
 pub(super) fn chrome(p: Palette) -> container::Style {
-    let top = blend(p.raised, Color::WHITE, 0.04);
     container::Style {
-        background: Some(Background::Gradient(
-            gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
-                .add_stop(0.0, top)
-                .add_stop(1.0, p.raised)
-                .into(),
-        )),
+        background: Some(p.bg.into()),
         ..Default::default()
     }
 }

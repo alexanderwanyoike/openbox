@@ -554,11 +554,11 @@ impl App {
         }
         container(column![
             container(controls)
-                .padding(14)
-                .style(move |_| panel(colors.panel)),
+                .padding(14),
             self.track_table(source),
             self.selection_bar(source),
         ])
+        .padding(1)
         .width(Length::Fill)
         .height(Length::Fill)
         .style(move |_| super::surfaces::card(colors))
