@@ -94,6 +94,21 @@ async function signal() {
   return { a: tones[0], seek: tones[1], b: tones[2], pitch: tones[3], rms: Math.sqrt(square / frames) };
 }
 
+async function checkWaveformMotion() {
+  const bytes = execFileSync('ffmpeg', ['-v', 'error', '-f', 'x11grab', '-draw_mouse', '0', '-framerate', '60',
+    '-video_size', '1440x900', '-i', `${process.env.DISPLAY}+0,0`, '-t', '3',
+    '-vf', 'crop=240:100:330:220', '-pix_fmt', 'gray', '-f', 'rawvideo', 'pipe:1'], { maxBuffer: 10 * 1024 * 1024 });
+  const size = 240 * 100;
+  const frames = Math.floor(bytes.length / size);
+  let changed = 0;
+  for (let n = 1; n < frames; n++) {
+    if (!bytes.subarray(n * size, (n + 1) * size).equals(bytes.subarray((n - 1) * size, n * size))) changed++;
+  }
+  const fps = 60 * changed / (frames - 1);
+  console.log(`Waveform motion: ${fps.toFixed(1)} distinct frames/sec (${changed}/${frames - 1} captured transitions)`);
+  assert.ok(fps >= 45, `Waveform movement updates at only ${fps.toFixed(1)} frames/sec`);
+}
+
 try {
   await waitFor(() => { window = x('search', '--onlyvisible', '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Iced window did not open');
   x('windowfocus', window);
@@ -111,6 +126,7 @@ try {
   await click(890, 381);
   let audio = await signal();
   assert.ok(audio.a > 0.02 && audio.b > 0.02, `Both decks were not audible: ${JSON.stringify(audio)}\n${logs}`);
+  if (process.env.OPENBOX_CHECK_MOTION) await checkWaveformMotion();
   await moveFader(650, 248, 345);
   capture('players-channel-a-muted');
   audio = await signal();
@@ -147,7 +163,7 @@ try {
   assert.ok(audio.a > 0.02 && audio.b > 0.02, `Trim knob reset failed: ${JSON.stringify(audio)}`);
   await click(815, 69);
   await drag(621, 605, 404);
-  await click(485, 410);
+  await drag(265, 510, 412);
   audio = await signal();
   assert.ok(audio.pitch > 0.04 && audio.a < 0.004, `Pitch did not change playback speed: ${JSON.stringify(audio)}`);
   await click(571, 410);
