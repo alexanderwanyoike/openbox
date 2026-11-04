@@ -27,13 +27,13 @@ pub(super) enum State {
     Current,
     Available(Release),
     Installing(String),
-    Restarting,
+    Restarting(PathBuf),
     RestartFailed(PathBuf, String),
     Failed(String),
 }
 impl State {
     pub fn locked(&self) -> bool {
-        matches!(self, Self::Installing(_) | Self::Restarting)
+        matches!(self, Self::Installing(_) | Self::Restarting(_))
     }
 }
 
@@ -96,8 +96,9 @@ impl App {
             }
             Event::Restarted(Ok(())) => return iced::exit(),
             Event::Restarted(Err(error)) => {
-                let path = std::env::current_exe().unwrap_or_default();
-                self.updates = State::RestartFailed(path, error.to_string());
+                if let State::Restarting(path) = &self.updates {
+                    self.updates = State::RestartFailed(path.clone(), error.to_string());
+                }
             }
             _ => {}
         }
@@ -105,7 +106,7 @@ impl App {
     }
 
     fn restart_updated(&mut self, path: PathBuf) -> Task<Message> {
-        self.updates = State::Restarting;
+        self.updates = State::Restarting(path.clone());
         let args: Vec<_> = std::env::args_os().skip(1).collect();
         run(
             move || openbox_updater::restart(&path, args),
@@ -138,7 +139,7 @@ impl App {
                 None,
                 "Checking GitHub Releases".into(),
             ),
-            State::Restarting => (
+            State::Restarting(_) => (
                 "Restarting...".into(),
                 None,
                 "Starting the updated application".into(),

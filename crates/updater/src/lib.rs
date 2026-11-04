@@ -36,16 +36,15 @@ pub struct Client {
 impl Default for Client {
     fn default() -> Self {
         #[cfg(debug_assertions)]
-        if let Ok(base) = std::env::var("OPENBOX_UPDATE_TEST_API") {
-            if base.starts_with("http://127.0.0.1:") {
-                return Self::with_api_base(&base);
-            }
+        if let Ok(base) = std::env::var("OPENBOX_UPDATE_TEST_API")
+            && base.starts_with("http://127.0.0.1:")
+        {
+            return Self::with_api_base(&base);
         }
         Self { api_base: None }
     }
 }
 impl Client {
-    #[cfg(debug_assertions)]
     pub fn with_api_base(base: &str) -> Self {
         Self {
             api_base: Some(base.to_owned()),
