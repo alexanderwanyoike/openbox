@@ -59,7 +59,7 @@ try {
   x('key', 'Escape'); await delay(300);
   capture('settings-library-returned');
   const rows = name => execFileSync('convert', [join(screenshots, `${name}.png`), '-crop', '900x180+260+570', 'gray:-']);
-  assert.deepEqual(rows('settings-library-returned'), rows('settings-library-scrolled'), 'Returning from Settings lost the scrolled library viewport');
+  assert.ok(rows('settings-library-returned').equals(rows('settings-library-scrolled')), 'Returning from Settings lost the scrolled library viewport');
   await click(1410, 24);
   capture('settings-initial');
   if (!process.env.CAPTURE_ONLY) {
