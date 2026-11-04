@@ -107,6 +107,7 @@ impl App {
                     .color(MUTED),
             );
         }
+        status = status.push(self.update_footer());
         let mut layout = column![self.header(), horizontal(1),];
         if self.preview.visible {
             layout = layout.push(self.players()).push(horizontal(1));

@@ -36,6 +36,7 @@ default = ["desktop"]
 desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio"]
 
 [dependencies]
+openbox-updater = { path = "crates/updater" }
 openbox-domain.workspace = true
 openbox-library.workspace = true
 openbox-rekordbox.workspace = true
