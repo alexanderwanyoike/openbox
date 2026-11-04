@@ -30,7 +30,7 @@ fn every_waveform_palette_follows_the_application_mode() {
             app.preferences.waveform_theme = waveform_theme;
             let pixels = super::test_render::render(&app, iced::mouse::Cursor::Unavailable);
             let pixel = pixels.pixel(400, 260).unwrap();
-            let brightness = f32::from(pixel.red()) / 255.0;
+            let brightness = (f32::from(pixel.red()) + f32::from(pixel.green()) + f32::from(pixel.blue())) / (3.0 * 255.0);
             assert!(match mode { Mode::Light => brightness > 0.8, Mode::Dark => brightness < 0.15 }, "{mode:?}/{waveform_theme:?} has the wrong waveform surface: {pixel:?}");
         }
     }
