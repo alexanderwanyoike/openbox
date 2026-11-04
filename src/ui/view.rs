@@ -1,52 +1,35 @@
+use super::icons::{self, Icon};
 use super::*;
 use browser::ROW_HEIGHT;
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Theme,
     widget::{
-        Column, Row, Space, button, checkbox, column, container, pick_list, progress_bar, row,
-        rule::horizontal, scrollable, text, text_input, tooltip,
+        Column, Row, Space, button, checkbox, column, container, lazy, pick_list, progress_bar,
+        row, rule::horizontal, scrollable, text, text_input, tooltip,
     },
 };
 
-pub(super) const BG: Color = Color::from_rgb(0.075, 0.086, 0.102);
-pub(super) const PANEL: Color = Color::from_rgb(0.094, 0.106, 0.125);
-pub(super) const RAISED: Color = Color::from_rgb(0.122, 0.137, 0.157);
-pub(super) const LINE: Color = Color::from_rgb(0.18, 0.20, 0.23);
-pub(super) const INK: Color = Color::from_rgb(0.84, 0.87, 0.91);
-pub(super) const MUTED: Color = Color::from_rgb(0.48, 0.54, 0.61);
-pub(super) const BLUE: Color = Color::from_rgb(0.25, 0.65, 0.98);
-const SELECTED: Color = Color::from_rgb(0.10, 0.23, 0.35);
-
-pub fn theme() -> Theme {
-    Theme::custom(
-        "Openbox",
-        iced::theme::Palette {
-            background: BG,
-            text: INK,
-            primary: BLUE,
-            success: BLUE,
-            warning: Color::from_rgb(0.95, 0.68, 0.28),
-            danger: Color::from_rgb(0.9, 0.36, 0.38),
-        },
-    )
-}
-
 impl App {
     pub fn theme(&self) -> Theme {
-        theme()
+        self.preferences.ui_theme.theme()
     }
 
     pub fn view(&self) -> Element<'_, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let ready = if self.busy { "WORKING" } else { "READY" };
         let mut status = row![
             text(ready)
                 .size(9)
                 .font(Font::MONOSPACE)
-                .color(if self.busy { BLUE } else { MUTED }),
+                .color(if self.busy {
+                    colors.accent
+                } else {
+                    colors.muted
+                }),
             text(&self.status).size(11).color(if self.error {
-                Color::from_rgb(1.0, 0.5, 0.5)
+                colors.danger
             } else {
-                MUTED
+                colors.muted
             }),
         ]
         .spacing(14)
@@ -68,7 +51,7 @@ impl App {
                         progress.completed, progress.total
                     ))
                     .size(10)
-                    .color(MUTED),
+                    .color(colors.muted),
                 )
                 .push(
                     progress_bar(0.0..=100.0, progress.percent)
@@ -79,7 +62,7 @@ impl App {
                     text(format!("{:.0}%", progress.percent))
                         .size(11)
                         .font(Font::MONOSPACE)
-                        .color(BLUE)
+                        .color(colors.accent)
                         .width(38),
                 );
         } else if let Some(progress) = &self.import_progress {
@@ -91,41 +74,49 @@ impl App {
                         progress.completed, progress.total
                     ))
                     .size(10)
-                    .color(MUTED),
+                    .color(colors.muted),
                 )
                 .push(progress_bar(0.0..=100.0, percent).length(140).girth(5))
                 .push(
                     text(format!("{percent:.0}%"))
                         .size(11)
                         .font(Font::MONOSPACE)
-                        .color(BLUE),
+                        .color(colors.accent),
                 );
         } else {
             status = status.push(
                 text("Shift: range   Ctrl: toggle   Ctrl+A: all   Esc: clear")
                     .size(10)
-                    .color(MUTED),
+                    .color(colors.muted),
             );
         }
         let mut layout = column![self.header(), horizontal(1),];
-        if self.preview.visible {
+        if self.preview.visible && !self.settings_visible {
             layout = layout.push(self.players()).push(horizontal(1));
         }
         layout
             .extend([
-                row![self.sidebar(), self.content()]
+                if self.settings_visible {
+                    self.settings()
+                } else {
+                    container(lazy(self.browser_revision, move |_| {
+                        row![self.sidebar(), self.content()].height(Length::Fill)
+                    }))
                     .height(Length::Fill)
-                    .into(),
+                    .width(Length::Fill)
+                    .into()
+                },
                 horizontal(1).into(),
                 container(status)
                     .padding([7, 14])
-                    .style(|_| panel(PANEL))
+                    .style(move |_| panel(colors.panel))
                     .into(),
             ])
             .into()
     }
 
     fn header(&self) -> Element<'_, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let usb_name = self
             .usb_root
             .as_ref()
@@ -153,46 +144,84 @@ impl App {
         };
         container(
             row![
-                text("openbox").size(20).color(INK),
-                text("EXPORT").size(10).font(Font::MONOSPACE).color(BLUE),
+                text("openbox").size(20).color(colors.ink),
+                text("EXPORT")
+                    .size(10)
+                    .font(Font::MONOSPACE)
+                    .color(colors.accent),
                 Space::new().width(24),
-                action("Import files", Message::ImportFiles, !self.busy),
-                action("Import folder", Message::ImportFolder, !self.busy),
-                action(
-                    if self.preview.visible {
-                        "Hide players"
-                    } else {
-                        "Players"
-                    },
-                    Message::Preview(preview::Event::Toggle),
-                    true
+                icons::hint(
+                    icons::labeled(Icon::Import, "Files", Message::ImportFiles, !self.busy, 85),
+                    "Import music files into your library"
                 ),
-                action(
-                    if self.tracks.selection.len() == 0 {
-                        "Analyze library"
+                icons::hint(
+                    icons::labeled(
+                        Icon::Folder,
+                        "Folder",
+                        Message::ImportFolder,
+                        !self.busy,
+                        96
+                    ),
+                    "Import music from a folder and its subfolders"
+                ),
+                icons::hint(
+                    icons::labeled(
+                        Icon::Players,
+                        "Players",
+                        Message::Preview(preview::Event::Toggle),
+                        true,
+                        90
+                    )
+                    .style(if self.preview.visible {
+                        primary
                     } else {
-                        "Analyze selected"
-                    },
-                    Message::Analyze,
-                    !self.busy
-                        && self.target == Target::Library
-                        && !self.workspace.library.tracks().is_empty()
+                        secondary
+                    }),
+                    if self.preview.visible {
+                        "Hide the decks without stopping playback"
+                    } else {
+                        "Show two preview decks and the mixer"
+                    }
+                ),
+                icons::hint(
+                    icons::labeled(
+                        Icon::Analyze,
+                        "Analyze",
+                        Message::Analyze,
+                        !self.busy
+                            && self.target == Target::Library
+                            && !self.workspace.library.tracks().is_empty(),
+                        112
+                    ),
+                    if self.tracks.selection.len() == 0 {
+                        "Detect BPM, beat grid and key for the library"
+                    } else {
+                        "Detect BPM, beat grid and key for selected tracks"
+                    }
                 ),
                 Space::new().width(Length::Fill),
-                text(usb_name).size(11).color(MUTED),
-                action("Connect USB", Message::ChooseUsb, !self.busy),
+                text(usb_name).size(11).color(colors.muted),
+                icons::hint(
+                    icons::labeled(Icon::Usb, "USB", Message::ChooseUsb, !self.busy, 93),
+                    "Open a mounted Rekordbox USB"
+                ),
                 action(label, message, enabled && !self.busy).style(primary),
+                icons::hint(
+                    icons::action(Icon::Settings, Message::OpenSettings, true),
+                    "Settings: interface and waveform themes"
+                ),
             ]
             .spacing(10)
             .align_y(Alignment::Center),
         )
         .padding([10, 16])
         .height(50)
-        .style(|_| panel(PANEL))
+        .style(move |_| panel(colors.panel))
         .into()
     }
 
-    fn sidebar(&self) -> Element<'_, Message> {
+    fn sidebar(&self) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let mut tree = Column::new().spacing(3);
         for target in [Target::Library, Target::Usb] {
             let collection = self.workspace.collection(target);
@@ -203,8 +232,17 @@ impl App {
                 "DEVICES"
             };
             tree = tree.push(
-                container(text(title).size(9).font(Font::MONOSPACE).color(MUTED)).padding([12, 10]),
+                container(
+                    text(title)
+                        .size(9)
+                        .font(Font::MONOSPACE)
+                        .color(colors.muted),
+                )
+                .padding([12, 10]),
             );
+            let selected_collection = self.target == target
+                && self.selected_playlist.is_none()
+                && self.selected_folder.is_none();
             tree = tree.push(
                 button(row![
                     text(if target == Target::Library {
@@ -214,23 +252,16 @@ impl App {
                     })
                     .size(12)
                     .width(Length::Fill),
-                    text(count).size(10).color(MUTED),
+                    text(count).size(10).color(colors.muted),
                 ])
                 .padding([8, 10])
                 .width(Length::Fill)
-                .style(move |_, status| {
-                    nav(
-                        status,
-                        self.target == target
-                            && self.selected_playlist.is_none()
-                            && self.selected_folder.is_none(),
-                    )
-                })
+                .style(move |theme, status| nav(theme, status, selected_collection))
                 .on_press(Message::Switch(target)),
             );
             tree = tree.push(
                 row![
-                    container(text("Playlists").size(11).color(MUTED))
+                    container(text("Playlists").size(11).color(colors.muted))
                         .padding([7, 10])
                         .width(Length::Fill),
                     action(
@@ -269,18 +300,18 @@ impl App {
                 };
                 let label = button(
                     row![
-                        text(node.name())
+                        text(node.name().to_owned())
                             .size(12)
                             .wrapping(iced::widget::text::Wrapping::None)
                             .width(Length::Fill),
-                        text(count).size(10).color(MUTED),
+                        text(count).size(10).color(colors.muted),
                     ]
                     .spacing(4),
                 )
                 .height(28)
                 .padding([5, 4])
                 .width(Length::Fill)
-                .style(move |_, status| nav(status, selected))
+                .style(move |theme, status| nav(theme, status, selected))
                 .on_press(message);
                 tree = tree.push(
                     row![
@@ -304,7 +335,7 @@ impl App {
                     container(
                         text("Connect a Rekordbox USB to browse its playlists.")
                             .size(11)
-                            .color(MUTED),
+                            .color(colors.muted),
                     )
                     .padding(10),
                 );
@@ -324,7 +355,7 @@ impl App {
             })
             .size(9)
             .font(Font::MONOSPACE)
-            .color(MUTED),
+            .color(colors.muted),
             tooltip(
                 text(location.clone())
                     .size(11)
@@ -350,12 +381,16 @@ impl App {
             horizontal(1),
             container(create).padding(12),
             row![
-                action(
-                    "Refresh USB",
-                    Message::RefreshUsb,
-                    self.usb_root.is_some() && !self.busy
-                )
-                .width(Length::Fill),
+                icons::hint(
+                    icons::labeled(
+                        Icon::Refresh,
+                        "Refresh",
+                        Message::RefreshUsb,
+                        self.usb_root.is_some() && !self.busy,
+                        144
+                    ),
+                    "Reread the USB library from disk"
+                ),
                 action(
                     "Undo",
                     Message::UndoUsb,
@@ -368,11 +403,12 @@ impl App {
         ])
         .width(224)
         .height(Length::Fill)
-        .style(|_| panel(PANEL))
+        .style(move |_| panel(colors.panel))
         .into()
     }
 
-    fn content(&self) -> Element<'_, Message> {
+    fn content(&self) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         if self.selected_folder.is_some() && self.selected_playlist.is_none() {
             return self.folder_content();
         }
@@ -384,7 +420,7 @@ impl App {
                         text("DEVICE PLAYLIST")
                             .font(Font::MONOSPACE)
                             .size(9)
-                            .color(BLUE),
+                            .color(colors.accent),
                         Space::new().width(Length::Fill),
                         action(
                             if self.browse_library {
@@ -398,13 +434,13 @@ impl App {
                         .style(quiet),
                         text("Select tracks in the collection, then add them to the USB playlist.")
                             .size(11)
-                            .color(MUTED),
+                            .color(colors.muted),
                     ]
                     .spacing(16)
                     .align_y(Alignment::Center),
                 )
                 .padding([8, 14])
-                .style(|_| panel(PANEL)),
+                .style(move |_| panel(colors.panel)),
             );
         }
         if self.browse_library && self.target == Target::Usb && self.selected_playlist.is_some() {
@@ -425,7 +461,8 @@ impl App {
             .into()
     }
 
-    fn track_pane(&self, source: bool) -> Element<'_, Message> {
+    fn track_pane(&self, source: bool) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let library = if source {
             Some(&self.workspace.library)
         } else {
@@ -445,7 +482,7 @@ impl App {
         let count = library.map_or(0, |l| browser.visible(l, playlist).len());
         let heading = row![
             text(title).size(17).width(Length::Fill),
-            text(format!("{count} tracks")).size(11).color(MUTED),
+            text(format!("{count} tracks")).size(11).color(colors.muted),
         ]
         .spacing(12)
         .align_y(Alignment::Center);
@@ -497,17 +534,20 @@ impl App {
             );
         }
         container(column![
-            container(controls).padding(14).style(|_| panel(BG)),
+            container(controls)
+                .padding(14)
+                .style(move |_| panel(colors.bg)),
             self.track_table(source),
             self.selection_bar(source),
         ])
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(|_| panel(BG))
+        .style(move |_| panel(colors.bg))
         .into()
     }
 
-    fn track_table(&self, source: bool) -> Element<'_, Message> {
+    fn track_table(&self, source: bool) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let browser = self.browser(source);
         let library = if source {
             Some(&self.workspace.library)
@@ -541,14 +581,18 @@ impl App {
                 ""
             };
             headings = headings.push(
-                button(text(format!("{label}{indicator}")).size(10).color(MUTED))
-                    .width(width)
-                    .padding([9, 6])
-                    .style(quiet)
-                    .on_press(Message::Sort(source, column)),
+                button(
+                    text(format!("{label}{indicator}"))
+                        .size(10)
+                        .color(colors.muted),
+                )
+                .width(width)
+                .padding([9, 6])
+                .style(quiet)
+                .on_press(Message::Sort(source, column)),
             );
         }
-        let header = container(headings).style(|_| panel(RAISED));
+        let header = container(headings).style(move |_| panel(colors.raised));
         let mut rows = Column::new().spacing(0);
         if visible.is_empty() {
             rows = rows.push(
@@ -570,7 +614,7 @@ impl App {
                             "Import a folder, select tracks, and add the selection to a playlist."
                         })
                         .size(12)
-                        .color(MUTED),
+                        .color(colors.muted),
                     ]
                     .spacing(10),
                 )
@@ -605,11 +649,11 @@ impl App {
                         SortColumn::Duration => duration.clone(),
                     };
                     let color = if selected || column == SortColumn::Title {
-                        INK
+                        colors.ink
                     } else if column == SortColumn::Key {
-                        Color::from_rgb(0.57, 0.76, 0.73)
+                        colors.accent
                     } else {
-                        MUTED
+                        colors.muted
                     };
                     let label: Element<'_, Message> = text(value)
                         .size(12)
@@ -617,7 +661,7 @@ impl App {
                         .wrapping(iced::widget::text::Wrapping::None)
                         .into();
                     let label: Element<'_, Message> = if column == SortColumn::Title {
-                        row![cover(track.details.artwork.as_deref(), 22), label]
+                        row![cover(track.details.artwork.as_deref(), 22, colors), label]
                             .spacing(7)
                             .align_y(Alignment::Center)
                             .into()
@@ -642,7 +686,12 @@ impl App {
                         .width(Length::Fill)
                         .height(ROW_HEIGHT)
                         .padding(0)
-                        .style(move |_, status| track_style(status, selected, index % 2 == 1))
+                        .style(move |theme, status| track_style(
+                            theme,
+                            status,
+                            selected,
+                            index % 2 == 1
+                        ))
                         .on_press(if source {
                             Message::SelectSource(id)
                         } else {
@@ -653,11 +702,11 @@ impl App {
                 .align_y(Alignment::Center);
                 rows = rows.push(container(line).style(move |_| {
                     panel(if selected {
-                        SELECTED
+                        colors.selected
                     } else if index % 2 == 1 {
-                        PANEL
+                        colors.panel
                     } else {
-                        BG
+                        colors.bg
                     })
                 }));
             }
@@ -682,14 +731,15 @@ impl App {
         .into()
     }
 
-    fn selection_bar(&self, source: bool) -> Element<'_, Message> {
+    fn selection_bar(&self, source: bool) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let selection = &self.browser(source).selection;
         let count = selection.len();
         let enabled = count > 0 && !self.busy;
         let mut actions = row![
             text(format!("{count} selected"))
                 .size(11)
-                .color(if enabled { BLUE } else { MUTED })
+                .color(if enabled { colors.accent } else { colors.muted })
                 .width(84),
             action("Clear", Message::ClearSelection(source), count > 0).style(quiet),
         ]
@@ -777,11 +827,12 @@ impl App {
         container(actions)
             .padding([10, 12])
             .height(48)
-            .style(|_| panel(RAISED))
+            .style(move |_| panel(colors.raised))
             .into()
     }
 
-    fn folder_content(&self) -> Element<'_, Message> {
+    fn folder_content(&self) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let library = self.collection();
         let folder = self.selected_folder.and_then(|id| library?.folder(id));
         let path = folder
@@ -806,9 +857,9 @@ impl App {
                 children = children.push(
                     button(
                         row![
-                            text(kind).size(11).color(MUTED).width(70),
-                            text(node.name()).size(13).width(Length::Fill),
-                            text(count).size(11).color(MUTED),
+                            text(kind).size(11).color(colors.muted).width(70),
+                            text(node.name().to_owned()).size(13).width(Length::Fill),
+                            text(count).size(11).color(colors.muted),
                         ]
                         .spacing(12),
                     )
@@ -823,7 +874,7 @@ impl App {
                     container(
                         text("Create a playlist or subfolder using the sidebar.")
                             .size(12)
-                            .color(MUTED),
+                            .color(colors.muted),
                     )
                     .padding(20),
                 );
@@ -840,7 +891,10 @@ impl App {
                     )
                 ]
                 .align_y(Alignment::Center),
-                text("FOLDER").size(10).font(Font::MONOSPACE).color(MUTED),
+                text("FOLDER")
+                    .size(10)
+                    .font(Font::MONOSPACE)
+                    .color(colors.muted),
                 horizontal(1),
                 scrollable(children).height(Length::Fill),
             ]
@@ -852,7 +906,8 @@ impl App {
         .into()
     }
 
-    fn delete_panel(&self) -> Element<'_, Message> {
+    fn delete_panel(&self) -> Element<'static, Message> {
+        let colors = self.preferences.ui_theme.palette();
         let label = match &self.deletion {
             Some(Deletion::Playlist(_)) => "Delete this playlist?".into(),
             Some(Deletion::Tracks(ids)) => format!(
@@ -865,7 +920,9 @@ impl App {
             row![
                 column![
                     text(label).size(13),
-                    text("Audio files will be kept.").size(11).color(MUTED)
+                    text("Audio files will be kept.")
+                        .size(11)
+                        .color(colors.muted)
                 ]
                 .spacing(4),
                 Space::new().width(Length::Fill),
@@ -876,7 +933,7 @@ impl App {
             .align_y(Alignment::Center),
         )
         .padding(12)
-        .style(|_| panel(RAISED))
+        .style(move |_| panel(colors.raised))
         .into()
     }
 }
@@ -919,23 +976,24 @@ pub(super) fn panel(color: Color) -> container::Style {
     }
 }
 
-pub(super) fn secondary(_: &Theme, status: button::Status) -> button::Style {
+pub(super) fn secondary(theme: &Theme, status: button::Status) -> button::Style {
+    let colors = super::appearance::palette(theme);
     button::Style {
         background: Some(
             if matches!(status, button::Status::Hovered | button::Status::Pressed) {
-                LINE
+                colors.line
             } else {
-                RAISED
+                colors.raised
             }
             .into(),
         ),
         text_color: if status == button::Status::Disabled {
-            MUTED
+            colors.muted
         } else {
-            INK
+            colors.ink
         },
         border: Border {
-            color: LINE,
+            color: colors.line,
             width: 1.0,
             radius: 3.0.into(),
         },
@@ -944,35 +1002,38 @@ pub(super) fn secondary(_: &Theme, status: button::Status) -> button::Style {
 }
 
 fn primary(theme: &Theme, status: button::Status) -> button::Style {
+    let colors = super::appearance::palette(theme);
     let mut style = secondary(theme, status);
     if status != button::Status::Disabled {
-        style.background = Some(BLUE.into());
-        style.text_color = BG;
-        style.border.color = BLUE;
+        style.background = Some(colors.accent.into());
+        style.text_color = colors.accent_text;
+        style.border.color = colors.accent;
     }
     style
 }
 
-pub(super) fn quiet(_: &Theme, status: button::Status) -> button::Style {
+pub(super) fn quiet(theme: &Theme, status: button::Status) -> button::Style {
+    let colors = super::appearance::palette(theme);
     button::Style {
         text_color: if status == button::Status::Hovered {
-            BLUE
+            colors.accent
         } else {
-            MUTED
+            colors.muted
         },
         background: matches!(status, button::Status::Hovered | button::Status::Pressed)
-            .then_some(RAISED.into()),
+            .then_some(colors.raised.into()),
         ..Default::default()
     }
 }
 
-fn nav(status: button::Status, selected: bool) -> button::Style {
+fn nav(theme: &Theme, status: button::Status, selected: bool) -> button::Style {
+    let colors = super::appearance::palette(theme);
     button::Style {
-        text_color: if selected { BLUE } else { INK },
+        text_color: if selected { colors.accent } else { colors.ink },
         background: if selected {
-            Some(SELECTED.into())
+            Some(colors.selected.into())
         } else if status == button::Status::Hovered {
-            Some(RAISED.into())
+            Some(colors.raised.into())
         } else {
             None
         },
@@ -980,18 +1041,24 @@ fn nav(status: button::Status, selected: bool) -> button::Style {
     }
 }
 
-fn track_style(status: button::Status, selected: bool, alternate: bool) -> button::Style {
+fn track_style(
+    theme: &Theme,
+    status: button::Status,
+    selected: bool,
+    alternate: bool,
+) -> button::Style {
+    let colors = super::appearance::palette(theme);
     button::Style {
-        text_color: INK,
+        text_color: colors.ink,
         background: Some(
             if selected {
-                SELECTED
+                colors.selected
             } else if status == button::Status::Hovered {
-                RAISED
+                colors.raised
             } else if alternate {
-                PANEL
+                colors.panel
             } else {
-                BG
+                colors.bg
             }
             .into(),
         ),
@@ -999,7 +1066,11 @@ fn track_style(status: button::Status, selected: bool, alternate: bool) -> butto
     }
 }
 
-pub(super) fn cover(path: Option<&std::path::Path>, size: u32) -> Element<'static, Message> {
+pub(super) fn cover(
+    path: Option<&std::path::Path>,
+    size: u32,
+    colors: super::appearance::Palette,
+) -> Element<'static, Message> {
     if let Some(path) = path {
         iced::widget::image(iced::widget::image::Handle::from_path(path))
             .width(size)
@@ -1007,10 +1078,10 @@ pub(super) fn cover(path: Option<&std::path::Path>, size: u32) -> Element<'stati
             .content_fit(iced::ContentFit::Cover)
             .into()
     } else {
-        container(text("♫").size((size / 2).max(10)).color(MUTED))
+        container(text("♫").size((size / 2).max(10)).color(colors.muted))
             .center_x(size)
             .center_y(size)
-            .style(|_| panel(RAISED))
+            .style(move |_| panel(colors.raised))
             .into()
     }
 }

@@ -2,6 +2,20 @@ use super::background;
 use iced::Task;
 use openbox_audio::{Band, Clip, DeckControl, DeckId, Engine, Snapshot};
 use openbox_domain::Track;
+use std::time::Instant;
+
+pub(super) fn position_at(
+    snapshot: openbox_audio::DeckSnapshot,
+    sampled_at: Instant,
+    now: Instant,
+) -> f64 {
+    let elapsed = if snapshot.playing {
+        now.saturating_duration_since(sampled_at).as_secs_f64() * snapshot.rate
+    } else {
+        0.0
+    };
+    (snapshot.position + elapsed).clamp(0.0, snapshot.duration)
+}
 
 #[derive(Debug, Clone)]
 pub enum Event {
@@ -43,7 +57,7 @@ impl Default for Deck {
             fader: 1.0,
             eq: [0.0; 3],
             pitch: 0.0,
-            zoom: 16.0,
+            zoom: 4.0,
         }
     }
 }
@@ -55,6 +69,7 @@ pub(super) struct Preview {
     pub engine: Option<Engine>,
     pub decks: [Deck; 2],
     pub snapshot: Snapshot,
+    pub sampled_at: Instant,
     pub crossfade: f32,
     pub master: f32,
     pub error: Option<String>,
@@ -68,6 +83,7 @@ impl Default for Preview {
             engine: None,
             decks: [Deck::default(), Deck::default()],
             snapshot: Snapshot::default(),
+            sampled_at: Instant::now(),
             crossfade: 0.5,
             master: 0.8,
             error: None,
@@ -94,6 +110,7 @@ impl Preview {
     pub fn tick(&mut self) {
         if let Some(engine) = &self.engine {
             self.snapshot = engine.snapshot();
+            self.sampled_at = Instant::now();
             if let Some(error) = engine.take_error() {
                 self.error = Some(error);
                 self.engine = None;
@@ -181,6 +198,7 @@ impl Preview {
                 if let Some(engine) = &self.engine {
                     engine.control(id, control);
                     self.snapshot = engine.snapshot();
+                    self.sampled_at = Instant::now();
                 }
             }
             Event::Crossfade(value) => {
@@ -195,7 +213,7 @@ impl Preview {
                     engine.master(value);
                 }
             }
-            Event::Zoom(id, span) => self.decks[id.index()].zoom = span.clamp(4.0, 64.0),
+            Event::Zoom(id, span) => self.decks[id.index()].zoom = span.clamp(1.0, 64.0),
             Event::ResetMixer => {
                 for id in [DeckId::A, DeckId::B] {
                     let _ = self.update(Event::Control(id, DeckControl::Gain(0.8)));

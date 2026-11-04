@@ -1,8 +1,12 @@
+pub mod appearance;
 mod browser;
+mod icons;
 mod knob;
 mod players;
 mod preview;
+mod ruler;
 mod selection;
+mod settings;
 mod view;
 mod waveform;
 
@@ -91,6 +95,11 @@ pub enum Message {
     UndoUsb,
     Tick,
     Preview(preview::Event),
+    OpenSettings,
+    CloseSettings,
+    UiTheme(appearance::UiTheme),
+    WaveformTheme(appearance::WaveformTheme),
+    ResetAppearance,
 }
 
 #[derive(Clone)]
@@ -126,11 +135,18 @@ pub struct App {
     import_updates: Option<Arc<Mutex<import::ImportProgress>>>,
     import_progress: Option<import::ImportProgress>,
     analyzing: bool,
+    browser_revision: u64,
     preview: preview::Preview,
+    preferences: appearance::Preferences,
+    settings_path: PathBuf,
+    settings_visible: bool,
 }
 
 impl App {
     pub fn load(library_path: PathBuf, usb_root: Option<PathBuf>) -> Result<Self, String> {
+        let settings_path = library_path.with_extension("settings.json");
+        let preferences = appearance::Preferences::load(&settings_path);
+        let settings_error = preferences.as_ref().err().cloned();
         let mut workspace = Workspace::load(library_path)?;
         if let Some(root) = &usb_root
             && root.join("PIONEER/rekordbox/export.pdb").exists()
@@ -156,19 +172,50 @@ impl App {
             undo_usb: None,
             pending_undo: None,
             deletion: None,
-            status: "Ready. Add music or select a playlist.".into(),
-            error: false,
+            status: settings_error
+                .clone()
+                .unwrap_or_else(|| "Ready. Add music or select a playlist.".into()),
+            error: settings_error.is_some(),
             export_progress: None,
             progress_updates: None,
             import_updates: None,
             import_progress: None,
             analyzing: false,
+            browser_revision: 0,
             preview: preview::Preview::default(),
+            preferences: preferences.unwrap_or_default(),
+            settings_path,
+            settings_visible: false,
         })
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        if !matches!(message, Message::Tick | Message::Preview(_)) {
+            self.browser_revision = self.browser_revision.wrapping_add(1);
+        }
         match message {
+            Message::OpenSettings => self.settings_visible = true,
+            Message::CloseSettings => self.settings_visible = false,
+            Message::UiTheme(theme) => self.set_preferences(appearance::Preferences {
+                ui_theme: theme,
+                ..self.preferences
+            }),
+            Message::WaveformTheme(theme) => self.set_preferences(appearance::Preferences {
+                waveform_theme: theme,
+                ..self.preferences
+            }),
+            Message::ResetAppearance => self.set_preferences(appearance::Preferences::default()),
+            Message::Keyboard(event) if self.settings_visible => {
+                if matches!(
+                    event,
+                    keyboard::Event::KeyPressed {
+                        key: keyboard::Key::Named(keyboard::key::Named::Escape),
+                        ..
+                    }
+                ) {
+                    self.settings_visible = false;
+                }
+            }
             Message::Tick => {
                 self.preview.tick();
                 if let Some(updates) = &self.progress_updates {
@@ -185,7 +232,6 @@ impl App {
             }
             Message::Preview(event) => {
                 let task = self.preview.update(event).map(Message::Preview);
-                self.refresh_preview_metadata();
                 return task;
             }
             Message::Switch(target) => {
@@ -688,6 +734,20 @@ impl App {
         Task::none()
     }
 
+    fn set_preferences(&mut self, preferences: appearance::Preferences) {
+        match preferences.save(&self.settings_path) {
+            Ok(()) => {
+                self.preferences = preferences;
+                self.status = "Appearance saved.".into();
+                self.error = false;
+            }
+            Err(error) => {
+                self.status = error;
+                self.error = true;
+            }
+        }
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         let keyboard = event::listen_with(|event, status, _| match event {
             Event::Keyboard(event @ keyboard::Event::ModifiersChanged(_)) => {
@@ -714,14 +774,9 @@ impl App {
             && (self.preview.snapshot.decks.iter().any(|d| d.playing)
                 || self.preview.snapshot.peak > 0.002);
         if self.progress_updates.is_some() || self.import_updates.is_some() || audio_live {
-            let interval = if audio_live && self.preview.visible {
-                33
-            } else {
-                80
-            };
             Subscription::batch([
                 keyboard,
-                iced::time::every(Duration::from_millis(interval)).map(|_| Message::Tick),
+                iced::time::every(Duration::from_millis(80)).map(|_| Message::Tick),
             ])
         } else {
             keyboard

@@ -1,10 +1,12 @@
 mod clip;
 mod engine;
 mod mixer;
+mod waveform;
 
-pub use clip::{Clip, WavePeak, Waveform};
+pub use clip::Clip;
 pub use engine::Engine;
 pub use mixer::{Band, DeckControl, DeckId, DeckSnapshot, Mixer, Snapshot};
+pub use waveform::{WavePeak, Waveform};
 
 #[cfg(test)]
 mod tests {

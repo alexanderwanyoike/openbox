@@ -36,21 +36,35 @@ default = ["desktop"]
 desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio"]
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+openbox-storage.workspace = true
 openbox-domain.workspace = true
 openbox-library.workspace = true
 openbox-rekordbox.workspace = true
 openbox-audio = { workspace = true, optional = true }
 clap = { version = "4.5", features = ["derive"], optional = true }
-iced = { version = "0.14", optional = true, default-features = false, features = ["tiny-skia", "tokio", "x11", "wayland", "crisp", "canvas", "image-without-codecs"] }
+iced = { version = "0.14", optional = true, default-features = false, features = ["tiny-skia", "tokio", "x11", "wayland", "crisp", "canvas", "lazy", "image-without-codecs"] }
 rfd = { version = "0.15", optional = true }
 tokio = { version = "1", optional = true, features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 tempfile.workspace = true
 openbox-storage.workspace = true
+iced_graphics = "0.14"
+iced_runtime = "0.14"
+tiny-skia = { version = "0.11", default-features = false }
+
+[profile.dev]
+opt-level = 1
 
 [profile.dev.package."*"]
 opt-level = 2
+
+[profile.dev.package.tiny-skia]
+opt-level = 3
+debug-assertions = false
+overflow-checks = false
 
 [profile.release]
 lto = "thin"
