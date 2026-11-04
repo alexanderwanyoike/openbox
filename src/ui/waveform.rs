@@ -230,7 +230,7 @@ impl canvas::Program<Message> for Wave<'_> {
                     if tick.major { colors.bar } else { colors.tick },
                 );
                 if let Some(label) = &tick.label {
-                    frame.fill_text(canvas::Text {
+                    outline_label(&mut frame, canvas::Text {
                         content: label.clone(),
                         position: Point::new(tick.x + 4.0, 4.0),
                         size: 10.0.into(),
@@ -267,7 +267,7 @@ impl canvas::Program<Message> for Wave<'_> {
                     colors.tick,
                 );
                 if let Some(label) = tick.label {
-                    frame.fill_text(canvas::Text {
+                    outline_label(&mut frame, canvas::Text {
                         content: label,
                         position: Point::new(tick.x + 4.0, bounds.height - 12.0),
                         size: 9.0.into(),
@@ -347,6 +347,12 @@ impl Wave<'_> {
             now,
         )
     }
+}
+
+fn outline_label(frame: &mut Frame, label: canvas::Text) {
+    // Tiny-skia gives cached canvas text unbounded damage rectangles.
+    // Outlines keep moving ruler labels from invalidating the library below.
+    label.draw_with(|path, color| frame.fill(&path, color));
 }
 
 fn draw_envelope(

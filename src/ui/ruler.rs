@@ -39,7 +39,7 @@ pub(super) fn beats(beats: &[Beat], start: f64, span: f64, duration: f64, width:
             }
             let x = ((at - start) / span) as f32 * width;
             let major = part == 0 && beat.number == 1;
-            let label = if part == 0 && (major || beat_width >= 64.0) && x - last_label >= 64.0 {
+            let label = if part == 0 && (major || beat_width >= 64.0) && x - last_label >= 64.0 && x + 42.0 <= width {
                 last_label = x;
                 Some(if beat_width >= 64.0 {
                     format!("{}.{}", index / 4 + 1, beat.number)
@@ -69,7 +69,7 @@ pub(super) fn time(start: f64, span: f64, duration: f64, width: f32) -> Vec<Tick
         .map(|n| {
             let at = n as f64 * minor;
             let major = n % 5 == 0;
-            let label = major.then(|| {
+            let label = (major && ((at - start) / span) as f32 * width + 48.0 <= width).then(|| {
                 let tenths = (at * 10.0).round() as u64;
                 if step < 1.0 {
                     format!("{}:{:02}.{}", tenths / 600, tenths / 10 % 60, tenths % 10)
