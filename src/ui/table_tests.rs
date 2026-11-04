@@ -17,3 +17,21 @@ fn long_metadata_does_not_paint_over_bpm_key_or_duration() {
         }
     }
 }
+
+#[test]
+fn every_waveform_palette_follows_the_application_mode() {
+    use super::appearance::{Mode, WaveformTheme};
+    let temp = tempfile::tempdir().unwrap();
+    let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+    app.preview.visible = true;
+    for mode in Mode::ALL {
+        for waveform_theme in WaveformTheme::ALL {
+            app.preferences.mode = mode;
+            app.preferences.waveform_theme = waveform_theme;
+            let pixels = super::test_render::render(&app, iced::mouse::Cursor::Unavailable);
+            let pixel = pixels.pixel(400, 260).unwrap();
+            let brightness = f32::from(pixel.red()) / 255.0;
+            assert!(match mode { Mode::Light => brightness > 0.8, Mode::Dark => brightness < 0.15 }, "{mode:?}/{waveform_theme:?} has the wrong waveform surface: {pixel:?}");
+        }
+    }
+}
