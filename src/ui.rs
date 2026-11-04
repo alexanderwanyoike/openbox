@@ -8,6 +8,7 @@ mod preview;
 mod ruler;
 mod selection;
 mod settings;
+mod surfaces;
 mod view;
 mod waveform;
 
@@ -1145,23 +1146,42 @@ mod tests {
 
     #[test]
     fn the_decks_and_mixer_have_separate_inset_panels() {
-        use iced_graphics::core::{Rectangle, widget::{Id, Operation}};
+        use iced_graphics::core::{
+            Rectangle,
+            widget::{Id, Operation},
+        };
         use iced_runtime::user_interface::{Cache, UserInterface};
         struct Panels(Vec<(Id, Rectangle)>);
         impl Operation for Panels {
-            fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) { children(self); }
+            fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+                children(self);
+            }
             fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
-                if let Some(id) = id { self.0.push((id.clone(), bounds)); }
+                if let Some(id) = id {
+                    self.0.push((id.clone(), bounds));
+                }
             }
         }
         let temp = tempfile::tempdir().unwrap();
         let mut app = App::load(temp.path().join("library.json"), None).unwrap();
         app.preview.visible = true;
         let mut renderer = iced::Renderer::new(iced::Font::DEFAULT, 16.0.into());
-        let mut ui = UserInterface::build(app.view(), iced::Size::new(1440.0, 900.0), Cache::new(), &mut renderer);
+        let mut ui = UserInterface::build(
+            app.view(),
+            iced::Size::new(1440.0, 900.0),
+            Cache::new(),
+            &mut renderer,
+        );
         let mut panels = Panels(Vec::new());
         ui.operate(&renderer, &mut panels);
-        let bounds = |name| panels.0.iter().find(|(id, _)| *id == Id::new(name)).map(|(_, bounds)| *bounds).expect("Missing framed panel");
+        let bounds = |name| {
+            panels
+                .0
+                .iter()
+                .find(|(id, _)| *id == Id::new(name))
+                .map(|(_, bounds)| *bounds)
+                .expect("Missing framed panel")
+        };
         let a = bounds("deck-a-panel");
         let mixer = bounds("mixer-panel");
         let b = bounds("deck-b-panel");

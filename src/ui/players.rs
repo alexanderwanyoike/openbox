@@ -8,8 +8,7 @@ use super::{
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Theme,
     widget::{
-        Space, canvas, column, container, progress_bar, row, rule::vertical, slider, text, tooltip,
-        vertical_slider,
+        Space, canvas, column, container, progress_bar, row, slider, text, tooltip, vertical_slider,
     },
 };
 use openbox_audio::{Band, DeckControl, DeckId};
@@ -19,14 +18,27 @@ impl App {
         let colors = self.preferences.palette();
         let mut content = column![
             row![
-                self.deck(DeckId::A),
-                vertical(1),
-                self.mixer(),
-                vertical(1),
-                self.deck(DeckId::B)
+                container(self.deck(DeckId::A))
+                    .id("deck-a-panel")
+                    .padding(10)
+                    .width(Length::Fill)
+                    .height(376)
+                    .style(move |_| super::surfaces::card(colors)),
+                container(self.mixer())
+                    .id("mixer-panel")
+                    .padding(10)
+                    .width(250)
+                    .height(376)
+                    .style(move |_| super::surfaces::card(colors)),
+                container(self.deck(DeckId::B))
+                    .id("deck-b-panel")
+                    .padding(10)
+                    .width(Length::Fill)
+                    .height(376)
+                    .style(move |_| super::surfaces::card(colors))
             ]
-            .spacing(12)
-            .height(356)
+            .spacing(8)
+            .height(376)
             .align_y(Alignment::Start),
         ]
         .spacing(8);
@@ -47,8 +59,8 @@ impl App {
             );
         }
         container(content)
-            .padding([10, 12])
-            .style(move |_| panel(colors.panel))
+            .padding(8)
+            .style(move |_| panel(colors.bg))
             .into()
     }
 

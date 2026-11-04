@@ -90,16 +90,19 @@ impl App {
                     .color(colors.muted),
             );
         }
-        let mut body = column![].height(Length::Fill);
+        let mut body = column![].spacing(8).height(Length::Fill);
         if self.preview.visible {
-            body = body.push(self.players()).push(horizontal(1));
+            body = body.push(self.players());
         }
         body = body.push(
             container(lazy(self.browser_revision, move |_| {
-                row![self.sidebar(), self.content()].height(Length::Fill)
+                row![self.sidebar(), self.content()]
+                    .spacing(8)
+                    .height(Length::Fill)
             }))
             .height(Length::Fill)
-            .width(Length::Fill),
+            .width(Length::Fill)
+            .padding([0, 8]),
         );
         let overlay: Element<'_, Message> = if self.settings_visible {
             opaque(
@@ -153,7 +156,7 @@ impl App {
         };
         container(
             row![
-                text("Openbox").size(20).color(colors.ink),
+                text("Openbox").size(18).color(colors.ink),
                 Space::new().width(36),
                 Space::new().width(24),
                 icons::hint(
@@ -222,7 +225,7 @@ impl App {
         )
         .padding([10, 16])
         .height(50)
-        .style(move |_| panel(colors.panel))
+        .style(move |_| super::surfaces::chrome(colors))
         .into()
     }
 
@@ -409,7 +412,7 @@ impl App {
         ])
         .width(224)
         .height(Length::Fill)
-        .style(move |_| panel(colors.panel))
+        .style(move |_| super::surfaces::card(colors))
         .into()
     }
 
@@ -487,7 +490,7 @@ impl App {
         };
         let count = library.map_or(0, |l| browser.visible(l, playlist).len());
         let heading = row![
-            text(title).size(17).width(Length::Fill),
+            text(title).size(14).width(Length::Fill),
             text(format!("{count} tracks")).size(11).color(colors.muted),
         ]
         .spacing(12)
@@ -542,13 +545,13 @@ impl App {
         container(column![
             container(controls)
                 .padding(14)
-                .style(move |_| panel(colors.bg)),
+                .style(move |_| panel(colors.panel)),
             self.track_table(source),
             self.selection_bar(source),
         ])
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(move |_| panel(colors.bg))
+        .style(move |_| super::surfaces::card(colors))
         .into()
     }
 
@@ -598,7 +601,7 @@ impl App {
                 .on_press(Message::Sort(source, column)),
             );
         }
-        let header = container(headings).style(move |_| panel(colors.raised));
+        let header = container(headings).style(move |_| panel(colors.panel));
         let mut rows = Column::new().spacing(0);
         if visible.is_empty() {
             rows = rows.push(
@@ -710,9 +713,9 @@ impl App {
                     panel(if selected {
                         colors.selected
                     } else if index % 2 == 1 {
-                        colors.panel
+                        super::surfaces::blend(colors.panel, colors.raised, 0.24)
                     } else {
-                        colors.bg
+                        colors.panel
                     })
                 }));
             }
@@ -989,7 +992,7 @@ pub(super) fn secondary(theme: &Theme, status: button::Status) -> button::Style 
             if matches!(status, button::Status::Hovered | button::Status::Pressed) {
                 colors.line
             } else {
-                colors.raised
+                super::surfaces::blend(colors.panel, colors.raised, 0.35)
             }
             .into(),
         ),
@@ -999,7 +1002,10 @@ pub(super) fn secondary(theme: &Theme, status: button::Status) -> button::Style 
             colors.ink
         },
         border: Border {
-            color: colors.line,
+            color: Color {
+                a: 0.65,
+                ..colors.line
+            },
             width: 1.0,
             radius: 7.0.into(),
         },
@@ -1035,13 +1041,17 @@ pub(super) fn quiet(theme: &Theme, status: button::Status) -> button::Style {
 fn nav(theme: &Theme, status: button::Status, selected: bool) -> button::Style {
     let colors = super::appearance::palette(theme);
     button::Style {
-        text_color: if selected { colors.accent } else { colors.ink },
+        text_color: colors.ink,
         background: if selected {
             Some(colors.selected.into())
         } else if status == button::Status::Hovered {
             Some(colors.raised.into())
         } else {
             None
+        },
+        border: Border {
+            radius: 8.0.into(),
+            ..Default::default()
         },
         ..Default::default()
     }
@@ -1062,9 +1072,9 @@ fn track_style(
             } else if status == button::Status::Hovered {
                 colors.raised
             } else if alternate {
-                colors.panel
+                super::surfaces::blend(colors.panel, colors.raised, 0.24)
             } else {
-                colors.bg
+                colors.panel
             }
             .into(),
         ),
