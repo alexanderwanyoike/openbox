@@ -77,7 +77,8 @@ impl App {
             choice(
                 column![swatch(color), text(accent.to_string()).size(10)]
                     .spacing(7)
-                    .align_x(Alignment::Center),
+                    .align_x(Alignment::Center)
+                    .width(Length::Fill),
                 Message::Accent(accent),
                 self.preferences.accent == accent,
             )
