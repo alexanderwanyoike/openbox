@@ -20,6 +20,8 @@ mod test_render;
 mod table_tests;
 #[cfg(test)]
 mod tooltip_tests;
+#[cfg(test)]
+mod player_tests;
 mod surfaces;
 mod view;
 mod waveform;

@@ -316,7 +316,7 @@ impl App {
             zoom,
             canvas(wave(false)).width(Length::Fill).height(174),
             transport,
-            pitch
+            container(pitch).id(format!("pitch-controls-{id:?}"))
         ]
         .spacing(6)
         .width(Length::Fill)
