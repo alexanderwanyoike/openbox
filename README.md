@@ -16,7 +16,7 @@ Building audio preview on Linux also requires ALSA development headers (`libasou
 cargo run --release
 ```
 
-The desktop feature is enabled by default. `cargo run` also works; rendering dependencies are optimized in development builds. Cargo manages the Rust dependencies.
+The desktop and GPU renderer are enabled by default, with a software fallback. `cargo run` also works; rendering dependencies are optimized in development builds. Use `cargo run --no-default-features --features desktop` to build software rendering alone. Cargo manages the Rust dependencies.
 
 For generated demo music:
 
@@ -56,13 +56,20 @@ Local changes persist in `.prototype/library.json`, unless `--library` supplies 
 Click **Players** in the toolbar. Select one track in the collection or on the USB, then click **Load A** or **Load B**. Each song loads in the background without changing its source file.
 
 - **Play/Pause** controls each deck independently. **Set cue** stores the current position and pauses; **Cue** returns to it. Cue points belong to the preview session.
-- Click the full-track overview to jump anywhere. Click the scrolling waveform to seek, or drag it left/right to scrub. **+ / -** changes its visible time span from 4 to 64 seconds. The small **< / >** buttons move 50 ms for fine alignment.
-- Use pitch within ±8% to match analyzed BPM values manually. Pitch changes speed and pitch together. **0** resets it; there is no key lock or automatic sync. Detected beat lines appear in the scrolling waveform.
-- Each mixer channel has trim and EQ knobs above a vertical volume fader and a level meter. Drag knobs vertically or scroll to adjust; double-click or right-click to reset. Drag channel faders to mix levels; Ctrl-click resets them, and Shift gives fine adjustment. Meters show the signal before the fader, so you can watch a playing channel while its volume is down. The crossfader stays horizontal.
-- The mixer has three-band EQ, channel level, master level, signal meters and an equal-power crossfader. **Reset** restores neutral EQ and default levels. The output is limited to prevent samples exceeding full scale; **CLIP** indicates excessive gain.
+- Waveforms use layered frequency colors, finer detail, beat ticks and a fixed white playhead. Playback animates independently of the library browser.
+- Click the full-track overview to jump anywhere. Click the scrolling waveform to seek, or drag it left/right to scrub. The zoom icons change its visible time span from 1 to 64 seconds. The small arrow icons move 50 ms for fine alignment.
+- Use pitch within ±8% to match analyzed BPM values manually. Pitch changes speed and pitch together. The reset icon beside pitch returns it to zero; there is no key lock or automatic sync. Detected beat lines appear in the scrolling waveform.
+- Each mixer channel has trim and EQ knobs above a vertical volume fader and a level meter. Drag knobs vertically or scroll to adjust; hold Shift for finer motion; double-click or right-click to reset. Drag channel faders to mix levels; Ctrl-click resets them, and Shift gives fine adjustment. Meters show the signal before the fader, so you can watch a playing channel while its volume is down. The crossfader stays horizontal.
+- The mixer has three-band EQ, channel level, master level, signal meters and an equal-power crossfader. The mixer reset icon restores neutral EQ and default levels. The output is limited to prevent samples exceeding full scale; **CLIP** indicates excessive gain.
 - Hiding the players keeps playback running while you organise music. Playback uses the desktop's default output. **Retry audio** reconnects after an output error.
 
 Only the two selected songs are decoded, as shared stereo PCM with waveform envelopes. Preview supports files up to 30 minutes long. It has no separate headphone output, MIDI controls, recording or persistent performance cues.
+
+## Appearance
+
+Open Settings using the gear icon. Light and dark modes combine with eight materials and six saturated accents; Native uses Showbiz’s flat neutral surfaces. Ten waveform palettes are independent of the application theme. Choices persist beside the library in `library.settings.json`. Escape returns to the same browser position.
+
+![Appearance settings](docs/images/settings-dark.png)
 
 ## Manage a USB
 
@@ -78,7 +85,7 @@ Connect the root of a mounted FAT32 USB. Traditional Rekordbox libraries open di
 
 Export and batch transfer show a percentage bar in the bottom status section. Progress covers source checks, encoding within each song, waveform creation, file publication and database saving. It reaches 100% only after the resulting device library reopens successfully.
 
-Use **Refresh USB** after changing the device through another application. Eject it through the desktop before unplugging.
+Use **Refresh** in the USB panel after changing the device through another application. Eject it through the desktop before unplugging.
 
 ## Device preservation and limits
 
@@ -86,7 +93,7 @@ Opening a USB is read-only. Writes back up the previous database under `.openbox
 
 New collection audio is encoded as stereo 44.1 kHz, 320 kbps MP3 with DAT/EXT waveforms and detected beat entries. BPM and key are written into the device database and ID3 tags. Export compensates for MP3 priming delay so the grid follows the exported waveform. Existing USB audio, analysis and artwork remain byte for byte; unchanged transfers reuse their assets.
 
-Imports automatically analyze BPM, beats and musical key using [aubio](https://aubio.org/) and [Mixxx libkeyfinder](https://github.com/mixxxdj/libkeyfinder). For existing collections, click **Analyze library**, or select a batch and click **Analyze selected**, then reexport the playlist. Analysis progress appears in the status bar. An export also analyzes legacy tracks that have no stored analysis. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering starts at the first detected beat and does not identify the musical downbeat. Tempo, key and phase remain estimates to check by ear before relying on player sync/quantize.
+Imports automatically analyze BPM, beats and musical key using [aubio](https://aubio.org/) and [Mixxx libkeyfinder](https://github.com/mixxxdj/libkeyfinder). For existing collections, click **Analyze** to analyze the library, or select a batch first to analyze only those tracks, then reexport the playlist. Analysis progress appears in the status bar. An export also analyzes legacy tracks that have no stored analysis. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering starts at the first detected beat and does not identify the musical downbeat. Tempo, key and phase remain estimates to check by ear before relying on player sync/quantize.
 
 Lofty reads ID3 and other supported tags. Titles, artists, albums, genres, album artists, composers, comments, dates and track/disc numbers are retained; the browser and preview decks display cover artwork. USB export writes ID3v2.3 with an embedded JPEG and registers 80x80 and 240x240 artwork files. USB playlist import copies artwork, audio and the grid locally so they remain available after unplugging. Local cue editing and exporting imported cues to another device are not implemented.
 
@@ -112,7 +119,7 @@ Adapters depend on the domain. Application operations use the adapters. The desk
 
 Track rows are rendered only around the visible viewport. Selection remains based on track identities across the full filtered list. See [ADR 002](docs/adr/002-workspace-and-bulk-browser.md).
 
-The device adapter uses [Bake'n Deck](https://github.com/M-Igashi/baken), pinned to revision `2789f0615236affdf65d856171b58dfd1eb2425d`. Independent format tests use [rekordcrate](https://github.com/Holzhaus/rekordcrate). See [ADR 004](docs/adr/004-analysis-and-artwork.md) and [third-party licensing notices](THIRD-PARTY-NOTICES.md) for the analysis dependencies. GPLv3 requirements apply when distributing the combined executable.
+The device adapter uses [Bake'n Deck](https://github.com/M-Igashi/baken), pinned to revision `2789f0615236affdf65d856171b58dfd1eb2425d`. Independent format tests use [rekordcrate](https://github.com/Holzhaus/rekordcrate). See [waveform rendering decisions](docs/adr/005-waveform-rendering.md), [ADR 004](docs/adr/004-analysis-and-artwork.md) and [third-party licensing notices](THIRD-PARTY-NOTICES.md) for the analysis dependencies. GPLv3 requirements apply when distributing the combined executable.
 
 ## Validate
 
@@ -123,13 +130,16 @@ cargo fmt --all -- --check
 cargo build --release
 node scripts/demo.mjs
 xvfb-run -a -s '-screen 0 1600x1100x24' node scripts/smoke.mjs
-xvfb-run -a -s '-screen 0 1600x1100x24' node scripts/players-smoke.mjs
+xvfb-run -a -s '-screen 0 1600x1100x24' node scripts/settings-smoke.mjs
+OPENBOX_CHECK_MOTION=1 node scripts/players-smoke.mjs
 xvfb-run -a -s '-screen 0 1600x1100x24' node scripts/analysis-smoke.mjs
 ```
 
+Workspace code also uses light optimization in development builds so `cargo run` keeps preview rendering responsive.
+
 The native smoke harness uses the release executable, a 510-track collection, generated audio and a real Rekordbox database fixture in isolated temporary folders. It exercises keyboard selection, bulk edits, playlist creation from selection, scrolling, sorted batch USB transfer, replacement, deletion/Undo, nested trees and import. It checks original audio, analysis and database pages byte for byte. It requires Node.js, Xvfb, xdotool and ImageMagick. Set `OPENBOX_BIN=target/debug/openbox` to test a development executable.
 
-The player harness also requires `pactl` and `parec`. It creates an isolated test output, records generated tones to verify the sound, and removes that output afterwards without changing the desktop's default sink.
+The motion check requires FFmpeg and an accelerated X11 desktop. Xvfb provides software rendering for the functional checks. The player harness also requires `pactl` and `parec`. It creates an isolated test output, records generated tones to verify the sound, and removes that output afterwards without changing the desktop's default sink.
 
 For core crates without the desktop feature:
 
