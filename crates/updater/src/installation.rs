@@ -28,11 +28,12 @@ pub fn installation_path() -> Result<PathBuf, UpdateError> {
 
 pub(super) fn command(executable: impl AsRef<std::ffi::OsStr>) -> std::process::Command {
     let mut command = std::process::Command::new(executable);
-    #[cfg(target_os = "linux")]
-    command
-        .env_remove("APPDIR")
-        .env_remove("APPIMAGE")
-        .env_remove("ARGV0")
-        .env("APPIMAGE_EXTRACT_AND_RUN", "1");
+    if cfg!(target_os = "linux") {
+        command
+            .env_remove("APPDIR")
+            .env_remove("APPIMAGE")
+            .env_remove("ARGV0")
+            .env("APPIMAGE_EXTRACT_AND_RUN", "1");
+    }
     command
 }
