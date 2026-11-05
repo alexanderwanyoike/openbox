@@ -105,6 +105,12 @@ def package(
                             destination.write(item, arcname=item.relative_to(staging))
                 return archive
             if target == "x86_64-unknown-linux-gnu":
+                # Version 0.1.1 requests this filename before it knows about AppImages.
+                with tarfile.open(
+                    output / f"openbox-{target}.tar.gz", "w:gz"
+                ) as bridge:
+                    for item in sorted(staging.iterdir()):
+                        bridge.add(item, arcname=item.name)
                 appdir = staging / "Openbox.AppDir"
                 (appdir / "usr/bin").mkdir(parents=True)
                 shutil.move(staging / "openbox", appdir / "usr/bin/openbox")
