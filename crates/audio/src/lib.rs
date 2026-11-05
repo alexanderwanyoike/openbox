@@ -148,6 +148,8 @@ mod sync_tests {
         mixer.control(DeckId::A, DeckControl::Seek(5.2));
         mixer.control(DeckId::B, DeckControl::Seek(9.8));
         mixer.control(DeckId::A, DeckControl::Rate(1.02));
+        mixer.control(DeckId::A, DeckControl::PlayPause);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
         mixer.sync_to(DeckId::B, DeckId::A).unwrap();
         let snapshot = mixer.snapshot();
         assert!((snapshot.decks[1].rate - 120.0 * 1.02 / 126.0).abs() < 1e-9);
@@ -160,8 +162,6 @@ mod sync_tests {
             .abs()
                 < 1e-6
         );
-        mixer.control(DeckId::A, DeckControl::PlayPause);
-        mixer.control(DeckId::B, DeckControl::PlayPause);
         mixer.render(&mut vec![0.0; 44100 * 2 * 10], 44100, 2);
         let snapshot = mixer.snapshot();
         let delta = phase(snapshot.decks[0].position, 120.0, 0.1)

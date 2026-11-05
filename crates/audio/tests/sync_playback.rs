@@ -23,6 +23,35 @@ fn sync_matches_the_playing_beat_period_instead_of_the_track_average() {
         mixer.render(&mut output, 1000, 2);
         let [a, b] = mixer.snapshot().decks;
         let error = (a.position / 0.5 - b.position / 0.515 + 0.5).rem_euclid(1.0) - 0.5;
-        assert!(error.abs() < 0.02, "Synced beats drifted by {error:.4} beats");
+        assert!(
+            error.abs() < 0.02,
+            "Synced beats drifted by {error:.4} beats"
+        );
     }
+}
+
+#[test]
+fn syncing_a_stopped_deck_preserves_its_cue_until_playback_starts() {
+    let mut mixer = Mixer::default();
+    deck(&mut mixer, DeckId::A, 0.5, 120.0);
+    deck(&mut mixer, DeckId::B, 0.48, 125.0);
+    mixer.control(DeckId::A, DeckControl::Seek(4.13));
+    mixer.control(DeckId::A, DeckControl::PlayPause);
+    mixer.control(DeckId::B, DeckControl::Seek(8.81));
+    mixer.control(DeckId::B, DeckControl::SetCue);
+    let before = mixer.snapshot().decks[1];
+    mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+    let after = mixer.snapshot().decks[1];
+    assert_eq!(
+        after.position, before.position,
+        "Sync moved a stopped deck away from its cue"
+    );
+    assert_eq!(after.cue, before.cue);
+    mixer.control(DeckId::B, DeckControl::PlayPause);
+    let [a, b] = mixer.snapshot().decks;
+    let error = (a.position / 0.5 - b.position / 0.48 + 0.5).rem_euclid(1.0) - 0.5;
+    assert!(
+        error.abs() < 0.001,
+        "Starting the follower did not align the beats"
+    );
 }
