@@ -109,15 +109,7 @@ pub(super) fn run(
         report(95.0 + 3.0 * fraction, ExportPhase::Publishing)
     })?;
     report(99.0, ExportPhase::Saving);
-    if let Err(error) = commit(
-        &root,
-        &output,
-        previous_bytes,
-        previous_model,
-        &updated,
-        &staged.sources,
-        previous.as_ref().and_then(|d| d.modern.as_ref()),
-    ) {
+    if let Err(error) = commit(&root, &output, previous.as_ref(), &updated, &staged.sources) {
         let unchanged = match std::fs::read(safe_path(&root, DATABASE)?) {
             Ok(bytes) => previous_bytes == Some(bytes.as_slice()),
             Err(e) => previous.is_none() && e.kind() == std::io::ErrorKind::NotFound,

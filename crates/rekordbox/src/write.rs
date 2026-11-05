@@ -6,12 +6,15 @@ use std::path::Path;
 pub(super) fn commit(
     root: &Path,
     pdb: &[u8],
-    expected: Option<&[u8]>,
-    baseline: Option<&[u8]>,
+    previous_device: Option<&super::DeviceLibrary>,
     library: &Library,
     sources: &[SourceLink],
-    expected_modern: Option<&super::onelibrary::Snapshot>,
 ) -> Result<(), String> {
+    let baseline = previous_device.map(|device| device.database.bytes.as_slice());
+    let expected = previous_device
+        .filter(|device| device.has_legacy)
+        .map(|device| device.database.bytes.as_slice());
+    let expected_modern = previous_device.and_then(|device| device.modern.as_ref());
     if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
         return Err("USB OneLibrary changed. Refresh it before saving.".into());
     }

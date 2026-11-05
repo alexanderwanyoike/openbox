@@ -170,13 +170,9 @@ pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {
     write::commit(
         &device.root,
         &pdb,
-        device
-            .has_legacy
-            .then_some(device.database.bytes.as_slice()),
-        Some(device.database.bytes.as_slice()),
+        Some(device),
         &device.library,
         &device.sources,
-        device.modern.as_ref(),
     )
 }
 
