@@ -7,3 +7,6 @@
 /test-results/
 /site/artifacts/
 /.native/
+
+__pycache__/
+*.py[cod]

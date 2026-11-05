@@ -22,9 +22,17 @@ Get the archive for your platform from [Releases](https://github.com/alexanderwa
 | macOS, Apple silicon | `openbox-aarch64-apple-darwin.tar.gz` |
 | macOS, Intel | `openbox-x86_64-apple-darwin.tar.gz` |
 
-Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
+Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. Windows also requires the [Microsoft Visual C++ x64 runtime](https://aka.ms/vc14/vc_redist.x64.exe). FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
 
 Extract the archive and run Openbox. On macOS, move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
+
+The Linux archive includes desktop launchers and icons. To install them for your account, run these commands from the extracted archive and ensure `~/.local/bin` is on your desktop session's PATH:
+
+```sh
+install -Dm755 openbox "$HOME/.local/bin/openbox"
+mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}"
+cp -R share/. "${XDG_DATA_HOME:-$HOME/.local/share}/"
+```
 
 ## Run
 
@@ -182,6 +190,12 @@ cargo test --workspace --no-default-features
 ```
 
 The compiled executable is `target/release/openbox`. See [validation details](docs/VALIDATION.md).
+
+### Corresponding-source archive
+
+Release source downloads include Cargo dependencies and FFTW 3.3.10. Extract the archive, set `OPENBOX_FFTW_SOURCE` to the absolute path of `native/fftw-3.3.10`, then run `cargo build --release --locked --offline`. The platform compiler, CMake and development libraries described above remain required. The generated `.cargo/config.toml` resolves the vendored crates without contacting their registries.
+
+Mac downloads contain `Openbox.app` for macOS 15 or later. Move it to a writable Applications location before using in-app updates. Downloads are unsigned and not notarized. FFmpeg and ffprobe remain separate runtime requirements on each platform.
 
 ## License
 
