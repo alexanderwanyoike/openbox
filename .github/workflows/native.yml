@@ -3,7 +3,7 @@ on:
   pull_request:
     branches: [dev, main]
   push:
-    branches: [dev, main, feature/native-platforms]
+    branches: [dev, main]
 permissions:
   contents: read
 env:
