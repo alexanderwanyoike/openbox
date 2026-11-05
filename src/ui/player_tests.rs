@@ -45,7 +45,7 @@ fn pitch_controls_fit_inside_the_decks_with_bottom_padding() {
         ] {
             let (panel, pitch) = (get(panel), get(pitch));
             assert!(
-                pitch.height >= 24.0,
+                pitch.height >= 28.0,
                 "Pitch/reset controls lose their full hit target: {pitch:?}"
             );
             assert!(
