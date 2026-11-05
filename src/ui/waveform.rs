@@ -14,7 +14,7 @@ use openbox_audio::{DeckControl, DeckId, Waveform};
 use std::{
     cell::{Cell, RefCell},
     sync::Arc,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 #[derive(Clone, Copy)]
@@ -64,6 +64,7 @@ struct Drag {
 
 #[derive(Default)]
 pub(super) struct State {
+    frame_at: Option<Instant>,
     drag: Option<Drag>,
     overview: canvas::Cache,
     source: RefCell<Option<(Waveform, WaveformTheme, Mode)>>,
@@ -79,11 +80,11 @@ impl canvas::Program<Message> for Wave<'_> {
         bounds: Rectangle,
         cursor: mouse::Cursor,
     ) -> Option<Action<Message>> {
-        if let canvas::Event::Window(iced::window::Event::RedrawRequested(at)) = event
-            && self.playing
-            && self.position_at(*at) < self.waveform.map_or(0.0, |w| w.duration)
-        {
-            return Some(Action::request_redraw_at(*at + Duration::from_millis(16)));
+        if let canvas::Event::Window(iced::window::Event::RedrawRequested(at)) = event {
+            state.frame_at = Some(*at);
+            if self.playing && self.position_at(*at) < self.waveform.map_or(0.0, |w| w.duration) {
+                return Some(Action::request_redraw());
+            }
         }
         let waveform = self.waveform?;
         let position = self.position_at(Instant::now());
@@ -169,7 +170,7 @@ impl canvas::Program<Message> for Wave<'_> {
             });
             return vec![frame.into_geometry()];
         };
-        let position = self.position_at(Instant::now());
+        let position = self.position_at(state.frame_at.unwrap_or_else(Instant::now));
         let viewport = Viewport::new(position, waveform.duration, self.span, self.overview);
         let mut geometries = Vec::with_capacity(3);
         if self.overview {
