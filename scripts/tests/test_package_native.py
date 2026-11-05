@@ -4,6 +4,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
@@ -38,6 +39,14 @@ class PackageNativeTest(unittest.TestCase):
         self.assertTrue((unpacked / 'licenses/COPYING.GPL-3').is_file())
         self.assertTrue((unpacked / 'THIRD-PARTY-NOTICES.md').is_file())
         self.assertEqual(subprocess.check_output([str(unpacked / 'openbox'), '--version'], text=True), 'openbox 0.1.1\n')
+
+    def test_windows_zip_contains_the_executable_and_distribution_notices(self):
+        result = self.package('x86_64-pc-windows-msvc')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with zipfile.ZipFile(self.root / 'out/openbox-x86_64-pc-windows-msvc.zip') as archive:
+            self.assertEqual(archive.read('openbox.exe'), self.binary.read_bytes())
+            self.assertIn('licenses/COPYING.GPL-3', archive.namelist())
+            self.assertIn('THIRD-PARTY-NOTICES.md', archive.namelist())
 
 
 if __name__ == '__main__':
