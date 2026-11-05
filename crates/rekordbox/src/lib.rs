@@ -130,12 +130,19 @@ pub fn put_tracks_with_progress(
 }
 
 pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
+    open_existing(root)?.ok_or("This USB has no Rekordbox library".into())
+}
+
+pub fn open_existing(root: &Path) -> Result<Option<DeviceLibrary>, String> {
     let root = root.canonicalize().map_err(|e| e.to_string())?;
     if journal::pending(&root)? {
         return Err("An interrupted USB save needs recovery. Recover this USB in Openbox before using it on a player.".into());
     }
     let modern = onelibrary::Snapshot::read(&root)?;
     let legacy = onelibrary::snapshot::read_optional(&safe_path(&root, DATABASE)?)?;
+    if legacy.is_none() && modern.is_none() {
+        return Ok(None);
+    }
     let has_legacy = legacy.is_some();
     let database = match legacy {
         Some(bytes) => Database::read(bytes)?,
@@ -158,20 +165,20 @@ pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
         })
         .map(|cache| cache.sources)
         .unwrap_or_default();
-    Ok(DeviceLibrary {
+    Ok(Some(DeviceLibrary {
         root,
         library,
         database,
         sources,
         modern,
         has_legacy,
-    })
+    }))
 }
 
-pub fn recover(root: &Path) -> Result<DeviceLibrary, String> {
+pub fn recover(root: &Path) -> Result<Option<DeviceLibrary>, String> {
     let root = root.canonicalize().map_err(|e| e.to_string())?;
     let _lock = DeviceWrite::acquire(&root)?;
-    open(&root)
+    open_existing(&root)
 }
 
 pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {

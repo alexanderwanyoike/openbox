@@ -43,16 +43,7 @@ pub(super) fn run(
     });
     let root = root.canonicalize().map_err(|e| e.to_string())?;
     let _lock = DeviceWrite::acquire(&root)?;
-    let previous = if safe_path(&root, DATABASE)?.exists()
-        || safe_path(&root, super::onelibrary::DATABASE)?.exists()
-    {
-        Some(open(&root)?)
-    } else {
-        if safe_path(&root, "PIONEER")?.exists() {
-            return Err("This USB has no supported traditional Rekordbox library".into());
-        }
-        None
-    };
+    let previous = super::open_existing(&root)?;
     let previous_model = previous.as_ref().map(|d| d.database.bytes.as_slice());
     let previous_bytes = previous
         .as_ref()
