@@ -141,11 +141,22 @@ impl App {
             if target == Target::Usb && collection.is_none() {
                 tree = tree.push(
                     container(
-                        text("Connect a Rekordbox USB to browse its playlists.")
-                            .size(11)
-                            .color(colors.muted),
+                        text(if self.usb_recovery {
+                            "USB save interrupted."
+                        } else {
+                            "Connect a Rekordbox USB to browse its playlists."
+                        })
+                        .size(11)
+                        .color(colors.muted),
                     )
                     .padding(10),
+                );
+            }
+            if target == Target::Usb && self.usb_recovery {
+                tree = tree.push(
+                    container(action("Recover USB", Message::RecoverUsb, !self.busy))
+                        .padding([0, 10])
+                        .id("usb-recovery"),
                 );
             }
         }

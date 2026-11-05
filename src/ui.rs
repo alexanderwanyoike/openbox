@@ -103,6 +103,7 @@ pub enum Message {
     UsbSelected(Option<PathBuf>),
     Connected(Result<Option<DeviceLibrary>, String>),
     RefreshUsb,
+    RecoverUsb,
     Export,
     Exported(Result<DeviceLibrary, String>),
     ImportUsbPlaylist,
@@ -147,6 +148,7 @@ pub struct App {
     new_name: String,
     rename_name: String,
     usb_root: Option<PathBuf>,
+    usb_recovery: bool,
     busy: bool,
     browse_library: bool,
     source: TrackBrowser,
@@ -181,9 +183,19 @@ impl App {
         let preferences = appearance::Preferences::load(&settings_path);
         let settings_error = preferences.as_ref().err().cloned();
         let mut workspace = Workspace::load(library_path)?;
-        if let Some(root) = &usb_root {
+        let usb_recovery = usb_root
+            .as_deref()
+            .map(usb::recovery_required)
+            .transpose()?
+            .unwrap_or(false);
+        if let Some(root) = &usb_root
+            && !usb_recovery
+        {
             workspace.device = usb::open_existing(root)?;
         }
+        let startup_error = settings_error.or_else(|| {
+            usb_recovery.then(|| "USB save interrupted. Choose Recover USB in Devices.".into())
+        });
         Ok(Self {
             workspace,
             target: Target::Library,
@@ -197,16 +209,17 @@ impl App {
             new_name: String::new(),
             rename_name: String::new(),
             usb_root,
+            usb_recovery,
             busy: false,
             browse_library: false,
             source: TrackBrowser::default(),
             undo_usb: None,
             pending_undo: None,
             deletion: None,
-            status: settings_error
+            status: startup_error
                 .clone()
                 .unwrap_or_else(|| "Ready. Add music or select a playlist.".into()),
-            error: settings_error.is_some(),
+            error: startup_error.is_some(),
             export_progress: None,
             progress_updates: None,
             import_updates: None,
@@ -642,6 +655,7 @@ impl App {
             }
             Message::UsbSelected(Some(root)) if !self.busy => {
                 self.usb_root = Some(root);
+                self.usb_recovery = false;
                 self.workspace.device = None;
                 self.begin("Reading USB library...");
                 return self.connect();
@@ -650,16 +664,29 @@ impl App {
                 self.begin("Refreshing USB library...");
                 return self.connect();
             }
+            Message::RecoverUsb if !self.busy && self.usb_recovery => {
+                if let Some(root) = self.usb_root.clone() {
+                    self.begin("Recovering USB library...");
+                    return Task::perform(
+                        background(move || usb::recover(&root)),
+                        Message::Connected,
+                    );
+                }
+            }
             Message::Connected(result) => {
                 self.busy = false;
                 match result {
                     Ok(device) => {
+                        let recovered = self.usb_recovery;
+                        self.usb_recovery = false;
                         self.workspace.device = device;
                         self.undo_usb = None;
                         self.target = Target::Usb;
                         self.select_playlist(None);
                         self.notice(
-                            if self.workspace.device.is_some() {
+                            if recovered {
+                                "USB library recovered"
+                            } else if self.workspace.device.is_some() {
                                 "USB library opened"
                             } else {
                                 "Ready for your first export"
@@ -669,6 +696,10 @@ impl App {
                     }
                     Err(error) => {
                         self.workspace.device = None;
+                        self.usb_recovery = self
+                            .usb_root
+                            .as_deref()
+                            .is_some_and(|root| usb::recovery_required(root).unwrap_or(false));
                         self.notice(error, true);
                     }
                 }
