@@ -81,7 +81,7 @@ jobs:
           cache-on-failure: true
       - uses: ./.github/actions/native-setup
       - name: Build release executable
-        run: cargo build --release --locked --target ${{ matrix.target }} --no-default-features --features desktop
+        run: cargo build --release --locked --target ${{ matrix.target }}
       - name: Verify Windows desktop executable metadata
         if: runner.os == 'Windows'
         shell: bash
