@@ -49,7 +49,15 @@ Import a folder or multiple audio files. The collection and device trees stay vi
 
 The sidebar shows expandable playlist folders. Select a folder, enter a name in **New name**, then use the playlist or folder icon beside it. Tooltips identify each action. Selecting a playlist creates siblings in its parent folder. **Root** creates at the top level.
 
-Local changes persist in `.prototype/library.json`, unless `--library` supplies another file. Existing flat libraries continue to load.
+Local changes persist in the platform's application data directory, unless `--library` supplies another file:
+
+| Platform | Default library |
+|---|---|
+| Linux | `$XDG_DATA_HOME/openbox/library.json`, or `~/.local/share/openbox/library.json` |
+| macOS | `~/Library/Application Support/io.github.alexanderwanyoike.openbox/library.json` |
+| Windows | `%LOCALAPPDATA%\alexanderwanyoike\openbox\data\library.json` |
+
+Existing library files are not moved. To open a prototype collection, pass `--library /path/to/.prototype/library.json`. `--demo` retains its separate generated demo library. Existing flat libraries continue to load.
 
 The app bar contains File, Edit and View menus. Import, analysis, deck visibility and USB actions are in the workspace toolbar below it. Drag the app caption to move the window; use its window buttons or the bottom-right resize grip.
 
