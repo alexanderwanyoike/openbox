@@ -3633,6 +3633,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "openbox-media-tools"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "which",
+]
+
+[[package]]
 name = "openbox-metadata"
 version = "0.1.0"
 dependencies = [
