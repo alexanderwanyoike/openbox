@@ -156,3 +156,9 @@ The compiled executable is `target/release/openbox`. See [validation details](do
 ## License
 
 MIT. Third-party dependencies retain their own licenses.
+
+### Corresponding-source archive
+
+Release source downloads include Cargo dependencies and FFTW 3.3.10. Extract the archive, set `OPENBOX_FFTW_SOURCE` to the absolute path of `native/fftw-3.3.10`, then run `cargo build --release --locked --offline --no-default-features --features desktop`. The platform compiler, CMake and development libraries described above remain required. The generated `.cargo/config.toml` resolves the vendored crates without contacting their registries.
+
+Mac downloads contain `Openbox.app` for macOS 15 or later. Move it to a writable Applications location before using in-app updates. Downloads are unsigned and not notarized. FFmpeg and ffprobe remain separate runtime requirements on each platform.
