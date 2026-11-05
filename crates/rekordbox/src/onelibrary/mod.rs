@@ -10,10 +10,31 @@ use std::path::Path;
 
 pub(super) const DATABASE: &str = "PIONEER/rekordbox/exportLibrary.db";
 
-pub(super) fn create(legacy: &[u8], previous: Option<&Snapshot>) -> Result<Vec<u8>, String> {
+pub(super) fn create(
+    legacy: &[u8],
+    baseline: Option<&[u8]>,
+    previous: Option<&Snapshot>,
+) -> Result<Vec<u8>, String> {
     let folder = tempfile::tempdir().map_err(|e| e.to_string())?;
-    let path = folder.path().join("exportLibrary.db");
-    let mut db = connect(&path)?;
+    let path = folder.path().join("incoming.db");
+    fresh(&path, legacy)?;
+    if let Some(previous) = previous {
+        let baseline = baseline.ok_or("OneLibrary has no corresponding traditional library")?;
+        let baseline_path = folder.path().join("baseline.db");
+        fresh(&baseline_path, baseline)?;
+        let existing = folder.path().join("existing.db");
+        previous.copy_to(&existing)?;
+        let mut db = connect(&existing)?;
+        merge::apply(&mut db, &path, &baseline_path)?;
+        finish(db)?;
+        std::fs::read(existing).map_err(|e| e.to_string())
+    } else {
+        std::fs::read(path).map_err(|e| e.to_string())
+    }
+}
+
+fn fresh(path: &Path, legacy: &[u8]) -> Result<(), String> {
+    let mut db = connect(path)?;
     db.pragma_update(None, "journal_mode", "WAL")
         .map_err(error)?;
     db.execute_batch(include_str!("schema.sql"))
@@ -21,21 +42,13 @@ pub(super) fn create(legacy: &[u8], previous: Option<&Snapshot>) -> Result<Vec<u
     let tx = db.transaction().map_err(error)?;
     records::insert(&tx, &Database::read(legacy.to_vec())?)?;
     tx.commit().map_err(error)?;
+    finish(db)
+}
+
+fn finish(db: Connection) -> Result<(), String> {
     db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
         .map_err(error)?;
-    db.close().map_err(|(_, e)| error(e))?;
-    if let Some(previous) = previous {
-        let existing = folder.path().join("existing.db");
-        previous.copy_to(&existing)?;
-        let mut db = connect(&existing)?;
-        merge::apply(&mut db, &path)?;
-        db.execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
-            .map_err(error)?;
-        db.close().map_err(|(_, e)| error(e))?;
-        std::fs::read(existing).map_err(|e| e.to_string())
-    } else {
-        std::fs::read(path).map_err(|e| e.to_string())
-    }
+    db.close().map_err(|(_, e)| error(e))
 }
 
 pub(super) fn connect(path: &Path) -> Result<Connection, String> {

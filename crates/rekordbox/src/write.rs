@@ -14,7 +14,7 @@ pub(super) fn commit(
     if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
         return Err("USB OneLibrary changed. Refresh it before saving.".into());
     }
-    let modern = super::onelibrary::create(pdb, expected_modern)?;
+    let modern = super::onelibrary::create(pdb, expected, expected_modern)?;
     let mut library = library.clone();
     for track in library.tracks().to_vec() {
         let relative = track

@@ -7,12 +7,34 @@ use std::{
 
 type Row = Vec<Value>;
 
-pub(super) fn apply(db: &mut Connection, incoming: &Path) -> Result<(), String> {
+pub(super) fn apply(db: &mut Connection, incoming: &Path, baseline: &Path) -> Result<(), String> {
     db.execute(
         "ATTACH DATABASE ?1 AS incoming KEY ?2",
         params![incoming.to_string_lossy(), key::passphrase()?],
     )
     .map_err(error)?;
+    db.execute(
+        "ATTACH DATABASE ?1 AS baseline KEY ?2",
+        params![baseline.to_string_lossy(), key::passphrase()?],
+    )
+    .map_err(error)?;
+    for selection in [
+        "content_id,path,analysisDataFilePath FROM {schema}.content ORDER BY content_id",
+        "playlist_id,sequenceNo,name,attribute,playlist_id_parent FROM {schema}.playlist ORDER BY playlist_id",
+        "playlist_id,content_id,sequenceNo FROM {schema}.playlist_content ORDER BY playlist_id,sequenceNo,rowid",
+    ] {
+        let current = rows(
+            db,
+            &format!("SELECT {}", selection.replace("{schema}", "main")),
+        )?;
+        let original = rows(
+            db,
+            &format!("SELECT {}", selection.replace("{schema}", "baseline")),
+        )?;
+        if current != original {
+            return Err("The traditional and OneLibrary records differ. Synchronize this USB in rekordbox before editing it.".into());
+        }
+    }
     let tx = db.transaction().map_err(error)?;
     let triggers: i64 = tx
         .query_row(
@@ -83,7 +105,7 @@ pub(super) fn apply(db: &mut Connection, incoming: &Path) -> Result<(), String> 
         return Err("OneLibrary contains invalid references".into());
     }
     tx.commit().map_err(error)?;
-    db.execute_batch("DETACH DATABASE incoming")
+    db.execute_batch("DETACH DATABASE incoming; DETACH DATABASE baseline")
         .map_err(error)?;
     Ok(())
 }
