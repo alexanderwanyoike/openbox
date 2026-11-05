@@ -222,3 +222,44 @@ fn playlist_folders_use_the_same_workspace_surface_as_track_browsers() {
         );
     }
 }
+
+#[test]
+fn header_and_row_checkboxes_share_the_same_selection_column() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("usb");
+    openbox_test_support::rekordbox_usb(&root);
+    let mut app = App::load(temp.path().join("library.json"), Some(root)).unwrap();
+    let _ = app.update(Message::OpenPlaylist(Target::Usb, 23));
+    let mut renderer = super::rendering::new_renderer();
+    let mut ui = UserInterface::build(
+        app.view(),
+        iced::Size::new(1440.0, 900.0),
+        Cache::new(),
+        &mut renderer,
+    );
+    let mut messages = Vec::new();
+    for y in [267.0, 295.0] {
+        let _ = ui.update(
+            &[
+                iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+            ],
+            mouse::Cursor::Available(iced::Point::new(842.0, y)),
+            &mut renderer,
+            &mut iced_graphics::core::clipboard::Null,
+            &mut messages,
+        );
+    }
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m, Message::SelectAll(false))),
+        "The header checkbox must accept input in its selection column"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m, Message::ToggleTrack(42))),
+        "The row checkbox must align with the header's hit target"
+    );
+}
