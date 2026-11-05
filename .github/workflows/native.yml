@@ -66,8 +66,8 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          cargo_bin="$(command -v cargo)"
-          PATH=/usr/bin:/bin "$cargo_bin" test --locked -p openbox-analysis --target ${{ matrix.target }} detects_tempo_key_and_beats_from_audio_without_tags
+          analysis_test=$(cargo test --locked -p openbox-analysis --target ${{ matrix.target }} --no-run --message-format=json | python3 -c 'import json,sys; artifacts=[json.loads(line) for line in sys.stdin]; print(next(item["executable"] for item in artifacts if item.get("reason")=="compiler-artifact" and item["target"]["name"]=="openbox_analysis" and item["profile"]["test"] and item.get("executable")))')
+          PATH=/usr/bin:/bin "$analysis_test" --exact tests::detects_tempo_key_and_beats_from_audio_without_tags
       - name: Exercise executable startup
         shell: bash
         run: |
