@@ -201,6 +201,99 @@ mod tests {
     }
 
     #[test]
+    fn onelibrary_playlist_edits_preserve_cues_history_and_unknown_record_fields() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, a, b) = collection(music.path());
+        export(&library, &[a, b], usb.path()).unwrap();
+        let path = usb.path().join(onelibrary::DATABASE);
+        {
+            let db = onelibrary::connect(&path).unwrap();
+            db.execute_batch(
+                "ALTER TABLE content ADD COLUMN future TEXT DEFAULT 'retained';
+                 ALTER TABLE playlist_content ADD COLUMN future TEXT DEFAULT 'membership';
+                 UPDATE content SET djPlayCount=27, cueUpdateCount=8;
+                 INSERT INTO cue(cue_id,content_id,inUsec) SELECT 47,content_id,123456 FROM content;
+                 INSERT INTO history VALUES(91,0,'Last night',0,0);
+                 INSERT INTO history_content SELECT 91,content_id,1 FROM content;
+                 CREATE TABLE future_table(data BLOB);
+                 INSERT INTO future_table VALUES(X'00FF3142');",
+            )
+            .unwrap();
+        }
+        let mut device = open(usb.path()).unwrap();
+        let id = device
+            .library
+            .playlists()
+            .iter()
+            .find(|p| p.name == "Opening")
+            .unwrap()
+            .id;
+        device.library.rename_playlist(id, "Warm up").unwrap();
+        save_playlists(&device).unwrap();
+
+        let db = onelibrary::connect(&path).unwrap();
+        assert_eq!(
+            db.query_row("SELECT name FROM playlist WHERE playlist_id=?", [id as i64], |r| r
+                .get::<_, String>(0))
+                .unwrap(),
+            "Warm up"
+        );
+        assert_eq!(
+            db.query_row("SELECT name FROM playlist WHERE name='Closing'", [], |r| {
+                r.get::<_, String>(0)
+            })
+            .unwrap(),
+            "Closing"
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT djPlayCount,cueUpdateCount,future FROM content",
+                [],
+                |r| Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, String>(2)?
+                ))
+            )
+            .unwrap(),
+            (27, 8, "retained".into())
+        );
+        assert_eq!(
+            db.query_row("SELECT inUsec FROM cue WHERE cue_id=47", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            123456
+        );
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM history_content", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.query_row("SELECT hex(data) FROM future_table", [], |r| r
+                .get::<_, String>(0))
+                .unwrap(),
+            "00FF3142"
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT COUNT(*) FROM playlist_content WHERE future='membership'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            2
+        );
+        assert_eq!(
+            db.query_row("PRAGMA integrity_check", [], |r| r.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
