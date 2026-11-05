@@ -55,3 +55,25 @@ fn syncing_a_stopped_deck_preserves_its_cue_until_playback_starts() {
         "Starting the follower did not align the beats"
     );
 }
+
+#[test]
+fn sync_keeps_the_last_known_tempo_after_the_detected_grid_ends() {
+    let mut mixer = Mixer::default();
+    deck(&mut mixer, DeckId::A, 0.5, 120.0);
+    deck(&mut mixer, DeckId::B, 0.515, 120.0);
+    mixer.set_beat_grid(
+        DeckId::B,
+        BeatGrid::new(120.0, (0..8).map(|n| n as f64 * 0.515).collect()).unwrap(),
+    );
+    mixer.control(DeckId::A, DeckControl::Seek(10.13));
+    mixer.control(DeckId::B, DeckControl::Seek(11.81));
+    mixer.control(DeckId::A, DeckControl::PlayPause);
+    mixer.control(DeckId::B, DeckControl::PlayPause);
+    mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+    let [a, b] = mixer.snapshot().decks;
+    let error = (a.position / 0.5 - b.position / 0.515 + 0.5).rem_euclid(1.0) - 0.5;
+    assert!(
+        error.abs() < 0.001,
+        "Extrapolated sync uses a different tempo from the beat map: {error}"
+    );
+}
