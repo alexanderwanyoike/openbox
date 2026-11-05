@@ -47,7 +47,10 @@ fn syncing_a_stopped_deck_preserves_its_cue_until_playback_starts() {
         "Sync moved a stopped deck away from its cue"
     );
     assert_eq!(after.cue, before.cue);
-    assert!(!after.sync_phase, "A stopped deck must report tempo sync while awaiting Play");
+    assert!(
+        !after.sync_phase,
+        "A stopped deck must report tempo sync while awaiting Play"
+    );
     mixer.control(DeckId::B, DeckControl::PlayPause);
     let [a, b] = mixer.snapshot().decks;
     let error = (a.position / 0.5 - b.position / 0.48 + 0.5).rem_euclid(1.0) - 0.5;
@@ -92,7 +95,10 @@ fn unstable_intro_estimates_do_not_reject_or_drop_a_compatible_sync_pair() {
     mixer
         .sync_to(DeckId::B, DeckId::A)
         .expect("Compatible track tempos were rejected by intro estimates");
-    assert!(!mixer.snapshot().decks[1].sync_phase, "Unusable intro data must not report beat sync");
+    assert!(
+        !mixer.snapshot().decks[1].sync_phase,
+        "Unusable intro data must not report beat sync"
+    );
     for _ in 0..400 {
         mixer.render(&mut [0.0; 100], 1000, 2);
         assert_eq!(mixer.snapshot().decks[1].sync_leader, Some(DeckId::A));
