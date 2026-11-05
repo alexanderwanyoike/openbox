@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use clap::Parser;
 use openbox::ui::App;
 use std::path::PathBuf;
