@@ -51,6 +51,7 @@ pub struct DeckSnapshot {
     pub playing: bool,
     pub rate: f64,
     pub pitch_rate: f64,
+    pub bpm: Option<f64>,
     pub peak: f32,
     pub cue: f64,
     pub sync_leader: Option<DeckId>,
@@ -314,6 +315,9 @@ impl Mixer {
                     playing: d.playing,
                     rate: d.rate * d.adjustment,
                     pitch_rate: d.rate,
+                    bpm: d.grid.as_ref().zip(d.clip.as_ref()).map(|(grid, clip)| {
+                        grid.local_bpm(d.cursor / f64::from(clip.sample_rate)) * d.rate
+                    }),
                     peak: d.peak,
                     sync_leader: d.sync_leader,
                     cue: d

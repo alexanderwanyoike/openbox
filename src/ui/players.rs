@@ -69,11 +69,15 @@ impl App {
             .map_or("Select one track in either collection", |t| {
                 t.artist.as_str()
             });
-        let bpm = deck
-            .track
-            .as_ref()
-            .and_then(|t| t.details.bpm)
-            .map(|bpm| format!("{:.1}", bpm * (1.0 + deck.pitch / 100.0)))
+        let bpm = state
+            .bpm
+            .or_else(|| {
+                deck.track
+                    .as_ref()
+                    .and_then(|track| track.details.bpm)
+                    .map(|bpm| bpm * (1.0 + deck.pitch / 100.0))
+            })
+            .map(|bpm| format!("{bpm:.1}"))
             .unwrap_or_else(|| "--.-".into());
         let enabled = deck.clip.is_some() && !deck.loading && self.preview.engine.is_some();
         let control = move |control| Message::Preview(Event::Control(id, control));
