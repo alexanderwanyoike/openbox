@@ -133,3 +133,20 @@ test("mobile layout fits without horizontal overflow and retains offline release
   ).toBe(true);
   await page.screenshot({ path: "site/artifacts/mobile.png", fullPage: true });
 });
+
+test("product copy describes USB management without naming another application", async ({
+  page,
+}) => {
+  await page.route("https://api.github.com/**", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.goto("/");
+  await expect(page.locator("body")).not.toContainText(/rekordbox/i);
+  await expect(page.locator('meta[name="description"]')).not.toHaveAttribute(
+    "content",
+    /rekordbox/i,
+  );
+  await expect(
+    page.getByRole("heading", { name: "USB libraries", exact: true }),
+  ).toBeVisible();
+});
