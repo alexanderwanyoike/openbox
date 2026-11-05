@@ -457,6 +457,45 @@ mod tests {
     }
 
     #[test]
+    fn interrupted_save_recovery_refuses_committed_wal_updates_without_modifying_files() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+        let backup = usb.path().join(".openbox/backups/save-wal-conflict");
+        std::fs::create_dir_all(&backup).unwrap();
+        let mut files = Vec::new();
+        for path in [DATABASE, onelibrary::DATABASE, MANIFEST] {
+            let bytes = std::fs::read(usb.path().join(path)).unwrap();
+            std::fs::write(backup.join(Path::new(path).file_name().unwrap()), &bytes).unwrap();
+            let hash = storage::fingerprint_bytes(&bytes);
+            files.push(serde_json::json!({"path":path,"before":hash,"after":hash}));
+        }
+        std::fs::write(
+            usb.path().join(".openbox/pending.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "version":1,"backup":"save-wal-conflict","files":files
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let db = onelibrary::connect(&usb.path().join(onelibrary::DATABASE)).unwrap();
+        db.execute_batch("PRAGMA wal_autocheckpoint=0; UPDATE content SET djPlayCount=35")
+            .unwrap();
+        let before = openbox_test_support::files(usb.path());
+        let error = recover(usb.path()).err()
+            .expect("Recovery must preserve edits committed after an interrupted save");
+        assert!(error.contains("Close rekordbox"), "{error}");
+        assert_eq!(openbox_test_support::files(usb.path()), before);
+        assert_eq!(
+            db.query_row("SELECT djPlayCount FROM content", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            35
+        );
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
