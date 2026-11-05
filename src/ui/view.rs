@@ -159,6 +159,7 @@ impl App {
         if self.selected_playlist.is_some() {
             let mut tools = row![
                 text_input("Playlist name", &self.rename_name)
+                    .on_input(Message::RenameName)
                     .id("playlist-name")
                     .size(12)
                     .padding(8)
