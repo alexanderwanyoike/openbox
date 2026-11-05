@@ -61,6 +61,11 @@ def prepare(output: Path) -> Path | PreparationError:
         (output / "appimagetool").chmod(0o755)
         notices = output / "licenses"
         notices.mkdir(exist_ok=True)
+        shutil.copytree(
+            Path(__file__).resolve().parents[1] / "resources/linux/appimage-licenses",
+            notices,
+            dirs_exist_ok=True,
+        )
         for archive, member, name in [
             (
                 "type2-runtime.tar.gz",
