@@ -516,7 +516,7 @@ fn set_word(bytes: &mut [u8], offset: usize, value: u32) {
     bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
 }
 
-fn word(bytes: &[u8], offset: usize) -> Result<u32, String> {
+pub(super) fn word(bytes: &[u8], offset: usize) -> Result<u32, String> {
     Ok(u32::from_le_bytes(
         bytes
             .get(offset..offset + 4)
@@ -526,7 +526,7 @@ fn word(bytes: &[u8], offset: usize) -> Result<u32, String> {
     ))
 }
 
-fn half(bytes: &[u8], offset: usize) -> Result<u16, String> {
+pub(super) fn half(bytes: &[u8], offset: usize) -> Result<u16, String> {
     Ok(u16::from_le_bytes(
         bytes
             .get(offset..offset + 2)
@@ -536,7 +536,7 @@ fn half(bytes: &[u8], offset: usize) -> Result<u16, String> {
     ))
 }
 
-fn string(bytes: &[u8], offset: usize) -> Result<String, String> {
+pub(super) fn string(bytes: &[u8], offset: usize) -> Result<String, String> {
     let bytes = bytes
         .get(offset..)
         .ok_or("Invalid database string offset")?;
