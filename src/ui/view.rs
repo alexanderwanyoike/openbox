@@ -681,6 +681,8 @@ impl App {
         .padding(INSET)
         .width(Length::Fill)
         .height(Length::Fill)
+        .style(move |_| super::surfaces::workspace(colors))
+        .clip(true)
         .into()
     }
 
