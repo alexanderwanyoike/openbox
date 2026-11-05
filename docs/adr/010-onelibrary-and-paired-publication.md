@@ -20,6 +20,6 @@ Publication follows SQLite's [rollback journal pattern](https://www.sqlite.org/a
 
 ## Limits
 
-This backend change does not add the desktop's OneLibrary discovery or recovery action. Those integrations are required before release. Device-format tests do not establish physical player compatibility. OneLibrary playback, analysis and artwork still require hardware validation.
+The desktop discovers either format at startup and when refreshing a device. Interrupted saves keep the application usable and expose a Recover USB action in Devices. Recovery runs in a background task after that explicit action. Device-format tests do not establish physical player compatibility. OneLibrary playback, analysis and artwork still require hardware validation.
 
 Recovery covers interrupted process publication. It cannot guarantee drive-controller or filesystem behaviour during power loss or unplugging. Unix directory entries are flushed; Windows currently has regular-file flushing without an equivalent directory flush through `std::fs`. Do not delete a device WAL or recovery marker to bypass a conflict.

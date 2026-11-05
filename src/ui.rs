@@ -1,5 +1,7 @@
 pub mod appearance;
 mod browser;
+#[cfg(test)]
+mod browser_layout_tests;
 mod chrome;
 mod faders;
 mod icons;
@@ -26,6 +28,8 @@ mod test_render;
 #[cfg(test)]
 mod tooltip_tests;
 pub mod updates;
+#[cfg(test)]
+mod usb_tests;
 mod view;
 mod waveform;
 
@@ -101,6 +105,7 @@ pub enum Message {
     UsbSelected(Option<PathBuf>),
     Connected(Result<Option<DeviceLibrary>, String>),
     RefreshUsb,
+    RecoverUsb,
     Export,
     Exported(Result<DeviceLibrary, String>),
     ImportUsbPlaylist,
@@ -145,6 +150,7 @@ pub struct App {
     new_name: String,
     rename_name: String,
     usb_root: Option<PathBuf>,
+    usb_recovery: bool,
     busy: bool,
     browse_library: bool,
     source: TrackBrowser,
@@ -179,11 +185,19 @@ impl App {
         let preferences = appearance::Preferences::load(&settings_path);
         let settings_error = preferences.as_ref().err().cloned();
         let mut workspace = Workspace::load(library_path)?;
+        let usb_recovery = usb_root
+            .as_deref()
+            .map(usb::recovery_required)
+            .transpose()?
+            .unwrap_or(false);
         if let Some(root) = &usb_root
-            && root.join("PIONEER/rekordbox/export.pdb").exists()
+            && !usb_recovery
         {
-            workspace.device = Some(usb::open(root)?);
+            workspace.device = usb::open_existing(root)?;
         }
+        let startup_error = settings_error.or_else(|| {
+            usb_recovery.then(|| "USB save interrupted. Choose Recover USB in Devices.".into())
+        });
         Ok(Self {
             workspace,
             target: Target::Library,
@@ -197,16 +211,17 @@ impl App {
             new_name: String::new(),
             rename_name: String::new(),
             usb_root,
+            usb_recovery,
             busy: false,
             browse_library: false,
             source: TrackBrowser::default(),
             undo_usb: None,
             pending_undo: None,
             deletion: None,
-            status: settings_error
+            status: startup_error
                 .clone()
                 .unwrap_or_else(|| "Ready. Add music or select a playlist.".into()),
-            error: settings_error.is_some(),
+            error: startup_error.is_some(),
             export_progress: None,
             progress_updates: None,
             import_updates: None,
@@ -642,6 +657,7 @@ impl App {
             }
             Message::UsbSelected(Some(root)) if !self.busy => {
                 self.usb_root = Some(root);
+                self.usb_recovery = false;
                 self.workspace.device = None;
                 self.begin("Reading USB library...");
                 return self.connect();
@@ -650,8 +666,19 @@ impl App {
                 self.begin("Refreshing USB library...");
                 return self.connect();
             }
+            Message::RecoverUsb if !self.busy && self.usb_recovery => {
+                if let Some(root) = self.usb_root.clone() {
+                    self.begin("Recovering USB library...");
+                    return Task::perform(
+                        background(move || usb::recover(&root)),
+                        Message::Connected,
+                    );
+                }
+            }
             Message::Connected(result) => {
                 self.busy = false;
+                let recovered = self.usb_recovery;
+                self.finish_usb_operation(result.is_ok());
                 match result {
                     Ok(device) => {
                         self.workspace.device = device;
@@ -659,7 +686,9 @@ impl App {
                         self.target = Target::Usb;
                         self.select_playlist(None);
                         self.notice(
-                            if self.workspace.device.is_some() {
+                            if recovered {
+                                "USB library recovered"
+                            } else if self.workspace.device.is_some() {
                                 "USB library opened"
                             } else {
                                 "Ready for your first export"
@@ -693,6 +722,7 @@ impl App {
             Message::Exported(result) => {
                 self.busy = false;
                 self.finish_progress(result.is_ok());
+                self.finish_usb_operation(result.is_ok());
                 match result {
                     Ok(device) => {
                         let tracks = device.library.tracks().len();
@@ -769,6 +799,7 @@ impl App {
             Message::UsbUpdated(result) => {
                 self.busy = false;
                 self.finish_progress(result.is_ok());
+                self.finish_usb_operation(result.is_ok());
                 match result {
                     Ok(device) => {
                         self.workspace.device = Some(device);
@@ -784,7 +815,9 @@ impl App {
             }
             Message::UndoUsb if !self.busy => {
                 if let Some(previous) = self.undo_usb.clone() {
-                    match self.workspace.undo_usb_playlists(&previous) {
+                    let result = self.workspace.undo_usb_playlists(&previous);
+                    self.finish_usb_operation(result.is_ok());
+                    match result {
                         Ok(()) => {
                             self.undo_usb = None;
                             self.select_playlist(None);
@@ -1026,7 +1059,11 @@ impl App {
 
     fn edit(&mut self, edit: Edit, success: &str) -> bool {
         let previous = self.workspace.device.as_ref().map(|d| d.library.clone());
-        match self.workspace.edit(self.target, edit) {
+        let result = self.workspace.edit(self.target, edit);
+        if self.target == Target::Usb {
+            self.finish_usb_operation(result.is_ok());
+        }
+        match result {
             Ok(()) => {
                 if self.target == Target::Usb {
                     self.undo_usb = previous;
@@ -1037,6 +1074,23 @@ impl App {
             Err(error) => {
                 self.notice(error, true);
                 false
+            }
+        }
+    }
+
+    fn finish_usb_operation(&mut self, succeeded: bool) {
+        self.usb_recovery = !succeeded
+            && self
+                .usb_root
+                .as_deref()
+                .is_some_and(|root| usb::recovery_required(root).unwrap_or(true));
+        if self.usb_recovery {
+            self.workspace.device = None;
+            self.undo_usb = None;
+            self.pending_undo = None;
+            if self.target == Target::Usb {
+                self.select_playlist(None);
+                self.browse_library = false;
             }
         }
     }
@@ -1182,15 +1236,7 @@ impl App {
             return Task::done(Message::Connected(Err("Select a USB first".into())));
         };
         Task::perform(
-            background(move || {
-                if root.join("PIONEER/rekordbox/export.pdb").exists() {
-                    usb::open(&root).map(Some)
-                } else if root.join("PIONEER").exists() {
-                    Err("No traditional Rekordbox export.pdb found on this USB.".into())
-                } else {
-                    Ok(None)
-                }
-            }),
+            background(move || usb::open_existing(&root)),
             Message::Connected,
         )
     }

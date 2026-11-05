@@ -1,6 +1,7 @@
 mod analysis;
 mod database;
 mod journal;
+pub use journal::pending as recovery_required;
 mod onelibrary;
 mod transfer;
 mod write;

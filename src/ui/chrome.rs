@@ -209,7 +209,7 @@ impl App {
             row![
                 icons::themed(if export { Icon::Library } else { Icon::Usb }, true),
                 text(name).size(12).width(Length::Fill),
-                text(format!("{count} tracks")).size(11).color(p.muted),
+                text(view::track_count(count)).size(11).color(p.muted),
                 icons::hint(
                     icons::action(Icon::Import, Message::ImportFiles, !self.busy),
                     "Import music files"

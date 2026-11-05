@@ -33,6 +33,9 @@ pub(super) enum Icon {
     Refresh,
     Settings,
     Close,
+    Up,
+    Down,
+    Remove,
 }
 
 pub(super) fn action(icon: Icon, message: Message, enabled: bool) -> Button<'static, Message> {
@@ -179,6 +182,19 @@ impl canvas::Program<Message> for Symbol {
                 line(&mut frame, &[(10.0, 14.0), (14.0, 10.0)]);
             }
 
+            Icon::Up => line(&mut frame, &[(4.0, 10.0), (8.0, 6.0), (12.0, 10.0)]),
+            Icon::Down => line(&mut frame, &[(4.0, 6.0), (8.0, 10.0), (12.0, 6.0)]),
+            Icon::Remove => {
+                line(&mut frame, &[(3.0, 4.0), (13.0, 4.0)]);
+                line(
+                    &mut frame,
+                    &[(6.0, 4.0), (6.0, 2.0), (10.0, 2.0), (10.0, 4.0)],
+                );
+                line(
+                    &mut frame,
+                    &[(4.0, 4.0), (5.0, 14.0), (11.0, 14.0), (12.0, 4.0)],
+                );
+            }
             Icon::Close => {
                 line(&mut frame, &[(3.0, 3.0), (13.0, 13.0)]);
                 line(&mut frame, &[(13.0, 3.0), (3.0, 13.0)]);

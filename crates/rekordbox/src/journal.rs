@@ -21,7 +21,7 @@ struct Entry {
     after: String,
 }
 
-pub(super) fn pending(root: &Path) -> Result<bool, String> {
+pub fn pending(root: &Path) -> Result<bool, String> {
     safe_path(root, MARKER)?
         .try_exists()
         .map_err(|e| e.to_string())
