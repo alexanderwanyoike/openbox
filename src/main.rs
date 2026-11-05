@@ -11,7 +11,11 @@ struct Args {
     #[arg(long, help = "Open the separate demo library")]
     demo: bool,
 
-    #[arg(long, value_name = "FILE", help = "Local library JSON file")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Local library JSON file (defaults to application data)"
+    )]
     library: Option<PathBuf>,
 
     #[arg(long, value_name = "DIRECTORY", help = "Root of a mounted USB")]
@@ -20,13 +24,16 @@ struct Args {
 
 impl Args {
     fn library_path(&self) -> Result<PathBuf, String> {
-        Ok(self.library.clone().unwrap_or_else(|| {
-            PathBuf::from(if self.demo {
-                ".prototype/demo-library.json"
-            } else {
-                ".prototype/library.json"
-            })
-        }))
+        if let Some(path) = &self.library {
+            return Ok(path.clone());
+        }
+        if self.demo {
+            return Ok(PathBuf::from(".prototype/demo-library.json"));
+        }
+        let directories =
+            directories::ProjectDirs::from("io.github", "alexanderwanyoike", "openbox")
+                .ok_or("Cannot locate application data. Start Openbox with --library FILE.")?;
+        Ok(directories.data_local_dir().join("library.json"))
     }
 }
 
