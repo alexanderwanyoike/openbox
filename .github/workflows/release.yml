@@ -1,0 +1,62 @@
+name: Linux release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.96.1
+        with:
+          components: rustfmt, clippy
+      - name: Require a stable version from main
+        shell: bash
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          version=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(p["version"] for p in d["packages"] if p["name"]=="openbox"))')
+          test "$GITHUB_REF_NAME" = "v$version"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev libfftw3-dev libxkbcommon-dev libwayland-dev pkg-config ffmpeg
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace --all-targets
+      - run: cargo build --release --locked
+      - name: Package executable and corresponding source
+        shell: bash
+        run: |
+          mkdir -p release/binary release/source/.cargo
+          cp target/release/openbox LICENSE THIRD-PARTY-NOTICES.md README.md release/binary/
+          tar -czf release/openbox-x86_64-unknown-linux-gnu.tar.gz -C release/binary .
+          git archive HEAD | tar -x -C release/source
+          cd release/source
+          cargo vendor --locked vendor > .cargo/config.toml
+          cd ../..
+          tar -czf release/openbox-source.tar.gz -C release/source .
+          cd release
+          sha256sum openbox-*.tar.gz > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            release/openbox-*.tar.gz
+            release/SHA256SUMS
+  draft:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-release
+          path: release
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" release/openbox-*.tar.gz release/SHA256SUMS --draft --verify-tag --generate-notes
