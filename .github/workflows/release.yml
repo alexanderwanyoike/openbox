@@ -49,6 +49,7 @@ jobs:
           ruff format --check scripts/prepare-appimage.py scripts/package-native.py scripts/collect-licenses.py scripts/tests
           python3 scripts/prepare-appimage.py
           python3 -m unittest discover -s scripts/tests -v
+          OPENBOX_APPIMAGE_TOOLS="$PWD/.native/appimage" cargo test --locked -p openbox-updater
       - name: Assemble corresponding source and license inventory
         shell: bash
         run: |
