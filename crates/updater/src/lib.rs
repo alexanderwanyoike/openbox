@@ -148,6 +148,14 @@ impl Client {
                 } else {
                     path.to_path_buf()
                 };
+                #[cfg(target_os = "linux")]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
+                        .map_err(|error| {
+                        self_update::Error::verification_rejected(error.to_string())
+                    })?;
+                }
                 let output = std::process::Command::new(executable)
                     .arg("--version")
                     .output()
