@@ -300,17 +300,15 @@ impl App {
         let mut headings = Row::new().spacing(0).align_y(Alignment::Center);
         let all_selected =
             !visible.is_empty() && visible.iter().all(|t| browser.selection.contains(t.id));
-        headings = headings.push(
-            container(checkbox(all_selected).size(13).on_toggle(move |value| {
+        headings = headings.push(checkbox_column(checkbox(all_selected).size(13).on_toggle(
+            move |value| {
                 if value {
                     Message::SelectAll(source)
                 } else {
                     Message::ClearSelection(source)
                 }
-            }))
-            .padding([0, 10])
-            .width(32),
-        );
+            },
+        )));
         for (label, column, width) in columns(split) {
             let indicator = if browser.sort == column {
                 if browser.descending { " ▾" } else { " ▴" }
@@ -421,15 +419,13 @@ impl App {
                     cells = cells.push(container(label).width(width).padding([0, 6]).clip(true));
                 }
                 let id = track.id;
-                let check = container(checkbox(selected).size(13).on_toggle(move |_| {
+                let check = checkbox_column(checkbox(selected).size(13).on_toggle(move |_| {
                     if source {
                         Message::ToggleSource(id)
                     } else {
                         Message::ToggleTrack(id)
                     }
-                }))
-                .width(32)
-                .padding([0, INSET]);
+                }));
                 let line = row![
                     check,
                     button(cells)
@@ -716,6 +712,12 @@ impl App {
         .style(move |_| super::surfaces::footer(colors, true, true))
         .into()
     }
+}
+
+fn checkbox_column(
+    content: iced::widget::Checkbox<'static, Message>,
+) -> iced::widget::Container<'static, Message> {
+    container(content).padding([0, 10]).width(32)
 }
 
 fn columns(split: bool) -> Vec<(&'static str, SortColumn, Length)> {
