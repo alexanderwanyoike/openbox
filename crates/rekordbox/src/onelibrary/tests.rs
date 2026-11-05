@@ -157,7 +157,7 @@ fn saving_refuses_an_active_onelibrary_wal_without_modifying_any_files() {
     let before = openbox_test_support::files(usb.path());
     let error = save_playlists(&device)
         .expect_err("An active SQLite writer must not have its database replaced");
-    assert!(error.contains("Close rekordbox"), "{error}");
+    assert!(error.contains("Close other DJ software"), "{error}");
     assert_eq!(openbox_test_support::files(usb.path()), before);
     assert_eq!(
         db.query_row("SELECT djPlayCount FROM content", [], |r| r
@@ -275,7 +275,7 @@ fn interrupted_save_recovery_refuses_committed_wal_updates_without_modifying_fil
     let Err(error) = recover(usb.path()) else {
         panic!("Recovery must preserve edits committed after an interrupted save");
     };
-    assert!(error.contains("Close rekordbox"), "{error}");
+    assert!(error.contains("Close other DJ software"), "{error}");
     assert_eq!(openbox_test_support::files(usb.path()), before);
     assert_eq!(
         db.query_row("SELECT djPlayCount FROM content", [], |r| r
