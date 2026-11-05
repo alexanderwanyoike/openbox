@@ -675,10 +675,10 @@ impl App {
             }
             Message::Connected(result) => {
                 self.busy = false;
+                let recovered = self.usb_recovery;
+                self.finish_usb_operation(result.is_ok());
                 match result {
                     Ok(device) => {
-                        let recovered = self.usb_recovery;
-                        self.usb_recovery = false;
                         self.workspace.device = device;
                         self.undo_usb = None;
                         self.target = Target::Usb;
@@ -696,10 +696,6 @@ impl App {
                     }
                     Err(error) => {
                         self.workspace.device = None;
-                        self.usb_recovery = self
-                            .usb_root
-                            .as_deref()
-                            .is_some_and(|root| usb::recovery_required(root).unwrap_or(false));
                         self.notice(error, true);
                     }
                 }
@@ -724,6 +720,7 @@ impl App {
             Message::Exported(result) => {
                 self.busy = false;
                 self.finish_progress(result.is_ok());
+                self.finish_usb_operation(result.is_ok());
                 match result {
                     Ok(device) => {
                         let tracks = device.library.tracks().len();
@@ -800,6 +797,7 @@ impl App {
             Message::UsbUpdated(result) => {
                 self.busy = false;
                 self.finish_progress(result.is_ok());
+                self.finish_usb_operation(result.is_ok());
                 match result {
                     Ok(device) => {
                         self.workspace.device = Some(device);
@@ -815,7 +813,9 @@ impl App {
             }
             Message::UndoUsb if !self.busy => {
                 if let Some(previous) = self.undo_usb.clone() {
-                    match self.workspace.undo_usb_playlists(&previous) {
+                    let result = self.workspace.undo_usb_playlists(&previous);
+                    self.finish_usb_operation(result.is_ok());
+                    match result {
                         Ok(()) => {
                             self.undo_usb = None;
                             self.select_playlist(None);
@@ -1057,7 +1057,11 @@ impl App {
 
     fn edit(&mut self, edit: Edit, success: &str) -> bool {
         let previous = self.workspace.device.as_ref().map(|d| d.library.clone());
-        match self.workspace.edit(self.target, edit) {
+        let result = self.workspace.edit(self.target, edit);
+        if self.target == Target::Usb {
+            self.finish_usb_operation(result.is_ok());
+        }
+        match result {
             Ok(()) => {
                 if self.target == Target::Usb {
                     self.undo_usb = previous;
@@ -1068,6 +1072,23 @@ impl App {
             Err(error) => {
                 self.notice(error, true);
                 false
+            }
+        }
+    }
+
+    fn finish_usb_operation(&mut self, succeeded: bool) {
+        self.usb_recovery = !succeeded
+            && self
+                .usb_root
+                .as_deref()
+                .is_some_and(|root| usb::recovery_required(root).unwrap_or(true));
+        if self.usb_recovery {
+            self.workspace.device = None;
+            self.undo_usb = None;
+            self.pending_undo = None;
+            if self.target == Target::Usb {
+                self.select_playlist(None);
+                self.browse_library = false;
             }
         }
     }
