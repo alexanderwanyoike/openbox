@@ -488,18 +488,24 @@ impl App {
         let selection = &self.browser(source).selection;
         let count = selection.len();
         let enabled = count > 0 && !self.busy;
-        let mut actions = row![
-            text(format!("{count} selected"))
-                .size(11)
-                .color(if enabled { colors.accent } else { colors.muted })
-                .width(84),
-            browser_action("Clear", Message::ClearSelection(source), count > 0).style(quiet),
-        ]
-        .spacing(6)
-        .align_y(Alignment::Center);
+        let selection_summary: Element<'static, Message> = if count == 0 {
+            text("0 selected").size(11).color(colors.muted).into()
+        } else {
+            icons::hint(
+                button(text(format!("Clear ({count})")).size(12))
+                    .padding([6, 10])
+                    .height(CONTROL_HEIGHT)
+                    .style(quiet)
+                    .on_press(Message::ClearSelection(source)),
+                "Clear selection (Esc)",
+            )
+            .into()
+        };
+        let mut actions = row![selection_summary, Space::new().width(Length::Fill)]
+            .spacing(6)
+            .align_y(Alignment::Center);
         if source {
             actions = actions
-                .push(Space::new().width(Length::Fill))
                 .push(browser_action(
                     "Replace",
                     Message::ReplaceSource,
@@ -530,12 +536,12 @@ impl App {
                         .placeholder("Add to playlist...")
                         .text_size(12)
                         .padding(8)
-                        .width(180),
+                        .width(if self.split_browser() { 140 } else { 180 }),
                 );
             } else {
                 actions = actions.push(
                     browser_action("Add to playlist...", Message::SelectAll(false), false)
-                        .width(180),
+                        .width(if self.split_browser() { 140 } else { 180 }),
                 );
             }
             if self.selected_playlist.is_some() {
@@ -543,12 +549,20 @@ impl App {
                     && self.tracks.sort == SortColumn::Order
                     && self.tracks.query.is_empty();
                 actions = actions
-                    .push(browser_action("↑", Message::MoveTrack(-1), can_order))
-                    .push(browser_action("↓", Message::MoveTrack(1), can_order))
-                    .push(browser_action(
-                        "Remove",
-                        Message::RemoveFromPlaylist,
-                        enabled,
+                    .push(icons::hint(
+                        icons::action(Icon::Up, Message::MoveTrack(-1), can_order)
+                            .height(CONTROL_HEIGHT),
+                        "Move selected tracks up",
+                    ))
+                    .push(icons::hint(
+                        icons::action(Icon::Down, Message::MoveTrack(1), can_order)
+                            .height(CONTROL_HEIGHT),
+                        "Move selected tracks down",
+                    ))
+                    .push(icons::hint(
+                        icons::action(Icon::Remove, Message::RemoveFromPlaylist, enabled)
+                            .height(CONTROL_HEIGHT),
+                        "Remove selected tracks from this playlist; audio files are kept",
                     ));
             } else if self.target == Target::Library {
                 actions = actions
@@ -578,11 +592,10 @@ impl App {
                             .placeholder("Send to USB playlist...")
                             .text_size(12)
                             .padding(8)
-                            .width(180),
+                            .width(if self.split_browser() { 140 } else { 180 }),
                     );
                 }
             }
-            actions = actions.push(Space::new().width(Length::Fill));
         }
         let split = self.split_browser();
         container(actions)
