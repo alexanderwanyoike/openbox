@@ -84,6 +84,13 @@ impl DeviceWrite {
     }
 }
 
+impl Drop for DeviceWrite {
+    fn drop(&mut self) {
+        // A concurrent process spawn can inherit the descriptor and outlive this write.
+        let _ = self._file.unlock();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
