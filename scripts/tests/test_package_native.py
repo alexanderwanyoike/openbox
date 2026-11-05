@@ -68,6 +68,11 @@ class PackageNativeTest(unittest.TestCase):
         self.assertTrue(
             (unpacked / "usr/share/openbox/THIRD-PARTY-NOTICES.md").is_file()
         )
+        for name in ["musl.txt", "zstd.txt", "zlib.txt", "mimalloc.txt"]:
+            self.assertTrue(
+                (unpacked / "usr/share/openbox/licenses/AppImage" / name).is_file(),
+                f"Missing runtime notice: {name}",
+            )
         desktop = unpacked / "io.github.alexanderwanyoike.openbox.desktop"
         self.assertIn("Icon=io.github.alexanderwanyoike.openbox", desktop.read_text())
         self.assertTrue(
