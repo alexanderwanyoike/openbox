@@ -284,3 +284,36 @@ fn interrupted_save_recovery_refuses_committed_wal_updates_without_modifying_fil
         35
     );
 }
+
+#[test]
+fn recovering_an_interrupted_first_export_returns_to_a_blank_exportable_device() {
+    let music = tempfile::tempdir().unwrap();
+    let usb = tempfile::tempdir().unwrap();
+    let (library, playlist, _) = collection(music.path());
+    export(&library, &[playlist], usb.path()).unwrap();
+    let backup = usb.path().join(".openbox/backups/save-first-export");
+    std::fs::create_dir_all(&backup).unwrap();
+    let files: Vec<_> = [DATABASE,onelibrary::DATABASE,MANIFEST].into_iter().map(|path| {
+        let bytes = std::fs::read(usb.path().join(path)).unwrap();
+        serde_json::json!({"path":path,"before":null,"after":storage::fingerprint_bytes(&bytes)})
+    }).collect();
+    std::fs::write(
+        usb.path().join(".openbox/pending.json"),
+        serde_json::to_vec(&serde_json::json!({
+            "version":1,"backup":"save-first-export","files":files
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    assert!(
+        recover(usb.path()).is_ok(),
+        "Restoring a previously blank USB must succeed"
+    );
+    for path in [DATABASE, onelibrary::DATABASE, MANIFEST] {
+        assert!(!usb.path().join(path).exists());
+    }
+    let device = export(&library, &[playlist], usb.path())
+        .expect("A recovered blank USB must allow another export");
+    assert_eq!(device.library.playlists().len(), 1);
+    assert_eq!(device.library.tracks().len(), 1);
+}
