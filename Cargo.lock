@@ -3595,6 +3595,7 @@ version = "0.1.0"
 dependencies = [
  "bliss-audio-aubio-rs",
  "cc",
+ "cmake",
  "openbox-domain",
  "openbox-test-support",
  "pkg-config",
