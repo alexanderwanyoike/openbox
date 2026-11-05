@@ -484,6 +484,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn playing_waveforms_follow_display_frames_without_application_messages() {
+        use canvas::Program;
+        let clip = openbox_audio::Clip::from_pcm(vec![1000; 44100 * 2 * 2], 44100).unwrap();
+        let now = Instant::now();
+        let wave = Wave { theme: WaveformTheme::Classic, waveform: Some(&clip.waveform), deck: DeckId::A, position: 0.0, playing: true, rate: 1.0, sampled_at: now, cue: 0.0, span: 4.0, overview: false, color: Color::WHITE, beats: &[] };
+        let action = wave.update(&mut State::default(), &canvas::Event::Window(iced::window::Event::RedrawRequested(now)), Rectangle::new(Point::ORIGIN,Size::new(560.0,162.0)), mouse::Cursor::Unavailable).unwrap();
+        let (message, request, _) = action.into_inner();
+        assert!(message.is_none());
+        assert_eq!(request, iced::window::RedrawRequest::NextFrame);
+    }
+
+    #[test]
     fn moving_ruler_labels_only_damage_the_waveform_viewport() {
         use canvas::Program;
         use iced_graphics::{core::Renderer as _, geometry::Renderer as _};
