@@ -1,3 +1,4 @@
+mod grid;
 mod key;
 
 use aubio::{OnsetMode, Tempo};
@@ -13,7 +14,7 @@ const RATE: u32 = 22050;
 const HOP: usize = 64;
 static KEYFINDER_LOCK: Mutex<()> = Mutex::new(());
 
-pub const VERSION: &str = "bliss-aubio-0.2.4/libkeyfinder-2.2.8/1";
+pub const VERSION: &str = "bliss-aubio-0.2.4/libkeyfinder-2.2.8/mixxx-grid-1";
 
 pub struct Analysis {
     pub bpm: Option<f64>,
@@ -46,6 +47,7 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
     let mut buffer = [0u8; HOP * 4];
     let mut beats: Vec<Beat> = Vec::new();
     let mut bpms = Vec::new();
+    let mut sample_count = 0u64;
     let result: Result<(), String> = (|| {
         loop {
             let mut count = 0;
@@ -67,6 +69,7 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
                 *sample = f32::from_le_bytes(bytes.try_into().unwrap());
             }
             key.push(&samples[..count / 4])?;
+            sample_count += (count / 4) as u64;
             if tempo.do_result(&samples[..]).map_err(|e| e.to_string())? > 0.0 {
                 let time = f64::from(tempo.get_last_s());
                 let bpm = f64::from(tempo.get_bpm());
@@ -102,11 +105,16 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
         ));
     }
     bpms.sort_by(f64::total_cmp);
-    let bpm = (beats.len() >= 4)
+    let mut bpm = (beats.len() >= 4)
         .then(|| bpms.get(bpms.len() / 2).copied())
         .flatten();
     if bpm.is_none() {
         beats.clear();
+    } else if let Some((stable_bpm, stable_beats)) =
+        grid::stabilize(&beats, sample_count as f64 / f64::from(RATE))
+    {
+        bpm = Some(stable_bpm);
+        beats = stable_beats;
     }
     Ok(Analysis {
         bpm,
