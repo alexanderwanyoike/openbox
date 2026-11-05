@@ -58,6 +58,11 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
             .unwrap()
             .success()
     );
+    if cfg!(target_os = "macos") {
+        let resources = staged.join("Openbox.app/Contents/Resources");
+        fs::create_dir_all(&resources).unwrap();
+        fs::write(resources.join("updated.txt"), "new resource").unwrap();
+    }
     #[cfg(not(windows))]
     assert!(
         Command::new("tar")
@@ -97,6 +102,13 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
     };
     fs::create_dir_all(installed.parent().unwrap()).unwrap();
     fs::write(&installed, "old application").unwrap();
+    if cfg!(target_os = "macos") {
+        fs::write(
+            installed.ancestors().nth(3).unwrap().join("obsolete.txt"),
+            "old resource",
+        )
+        .unwrap();
+    }
     let client = openbox_updater::Client::with_api_base(&base);
     let release = client.check("0.1.0").unwrap().unwrap();
     client
@@ -110,6 +122,14 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
             .stdout
             .starts_with(b"openbox 0.2.0")
     );
+    if cfg!(target_os = "macos") {
+        let bundle = installed.ancestors().nth(3).unwrap();
+        assert!(!bundle.join("obsolete.txt").exists());
+        assert_eq!(
+            fs::read_to_string(bundle.join("Contents/Resources/updated.txt")).unwrap(),
+            "new resource"
+        );
+    }
     openbox_updater::restart(&installed, ["--library", "a library.json"]).unwrap();
     for _ in 0..100 {
         if marker.exists() {
@@ -153,7 +173,12 @@ fn release_server(bytes: Vec<u8>, digest: String) -> (String, std::thread::JoinH
 #[test]
 fn corrupt_downloads_leave_the_installed_application_unchanged() {
     let temp = tempfile::tempdir().unwrap();
-    let installed = temp.path().join("installed-openbox");
+    let installed = if cfg!(target_os = "macos") {
+        temp.path().join("Openbox.app/Contents/MacOS/openbox")
+    } else {
+        temp.path().join("installed-openbox")
+    };
+    std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
     std::fs::write(&installed, b"working application").unwrap();
     let (base, server) = release_server(b"damaged download".to_vec(), "a".repeat(64));
     let client = openbox_updater::Client::with_api_base(&base);
