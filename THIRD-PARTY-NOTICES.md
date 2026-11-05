@@ -18,3 +18,8 @@ The update adapter uses `self_update` 1.3.3 and `self-replace` 1.5 under MIT, wi
 ## Native interface
 
 The application menus use [Iced AW](https://github.com/iced-rs/iced_aw), MIT licensed, with only its menu feature enabled. The bundled Manrope Regular, SemiBold and Bold faces are static instances of the project's Manrope variable font. Copyright 2019 The Manrope Project Authors. The SIL Open Font License is included in `resources/fonts/Manrope-LICENSE.txt`.
+
+
+## OneLibrary
+
+The OneLibrary schema and device key decoding are adapted from [Baken](https://github.com/M-Igashi/baken/tree/8446116b51dba57370c37ff3bcc1efd69ab9ab40), commit `8446116b51dba57370c37ff3bcc1efd69ab9ab40`, under MIT. The key encoding originates in [pyrekordbox](https://github.com/dylanljones/pyrekordbox), also MIT. Their license texts are included in `crates/rekordbox/src/onelibrary/`. Device database encryption and authentication use SQLCipher through rusqlite, with SQLCipher 4 defaults. The exact SQLCipher and OpenSSL source versions are locked in Cargo.lock and must accompany corresponding-source distributions.

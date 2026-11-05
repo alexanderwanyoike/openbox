@@ -1,5 +1,7 @@
 mod analysis;
 mod database;
+mod journal;
+mod onelibrary;
 mod transfer;
 mod write;
 use database::Database;
@@ -19,6 +21,8 @@ struct DeviceCache {
     #[serde(default)]
     database_fingerprint: String,
     #[serde(default)]
+    onelibrary_fingerprint: String,
+    #[serde(default)]
     sources: Vec<SourceLink>,
 }
 
@@ -36,6 +40,8 @@ pub struct DeviceLibrary {
     pub library: Library,
     database: Database,
     sources: Vec<SourceLink>,
+    modern: Option<onelibrary::Snapshot>,
+    has_legacy: bool,
 }
 
 impl DeviceLibrary {
@@ -124,24 +130,55 @@ pub fn put_tracks_with_progress(
 }
 
 pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
+    open_existing(root)?.ok_or("This USB has no Rekordbox library".into())
+}
+
+pub fn open_existing(root: &Path) -> Result<Option<DeviceLibrary>, String> {
     let root = root.canonicalize().map_err(|e| e.to_string())?;
-    let database = Database::read(
-        std::fs::read(safe_path(&root, DATABASE)?)
-            .map_err(|e| format!("Cannot read Rekordbox USB library: {e}"))?,
-    )?;
+    if journal::pending(&root)? {
+        return Err("An interrupted USB save needs recovery. Recover this USB in Openbox before using it on a player.".into());
+    }
+    let modern = onelibrary::Snapshot::read(&root)?;
+    let legacy = onelibrary::snapshot::read_optional(&safe_path(&root, DATABASE)?)?;
+    if legacy.is_none() && modern.is_none() {
+        return Ok(None);
+    }
+    let has_legacy = legacy.is_some();
+    let database = match legacy {
+        Some(bytes) => Database::read(bytes)?,
+        None => onelibrary::legacy(modern.as_ref().ok_or("This USB has no Rekordbox library")?)?,
+    };
     let library = database.library(&root)?;
     let sources = std::fs::read(safe_path(&root, MANIFEST)?)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<DeviceCache>(&bytes).ok())
-        .filter(|cache| cache.database_fingerprint == storage::fingerprint_bytes(&database.bytes))
+        .filter(|cache| {
+            if has_legacy {
+                cache.database_fingerprint == storage::fingerprint_bytes(&database.bytes)
+            } else {
+                modern.as_ref().is_some_and(|snapshot| {
+                    snapshot.wal.as_ref().is_none_or(Vec::is_empty)
+                        && cache.onelibrary_fingerprint
+                            == storage::fingerprint_bytes(&snapshot.bytes)
+                })
+            }
+        })
         .map(|cache| cache.sources)
         .unwrap_or_default();
-    Ok(DeviceLibrary {
+    Ok(Some(DeviceLibrary {
         root,
         library,
         database,
         sources,
-    })
+        modern,
+        has_legacy,
+    }))
+}
+
+pub fn recover(root: &Path) -> Result<Option<DeviceLibrary>, String> {
+    let root = root.canonicalize().map_err(|e| e.to_string())?;
+    let _lock = DeviceWrite::acquire(&root)?;
+    open_existing(&root)
 }
 
 pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {
@@ -150,7 +187,7 @@ pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {
     write::commit(
         &device.root,
         &pdb,
-        Some(&device.database.bytes),
+        Some(device),
         &device.library,
         &device.sources,
     )
@@ -219,7 +256,7 @@ mod tests {
         assert!(updates.iter().all(|p| p.percent < 100.0));
     }
 
-    fn collection(folder: &Path) -> (Library, u64, u64) {
+    pub(super) fn collection(folder: &Path) -> (Library, u64, u64) {
         let audio = folder.join("track.wav");
         openbox_test_support::audio(&audio);
         let mut library = Library::default();

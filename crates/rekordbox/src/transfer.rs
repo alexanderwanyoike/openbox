@@ -43,16 +43,13 @@ pub(super) fn run(
     });
     let root = root.canonicalize().map_err(|e| e.to_string())?;
     let _lock = DeviceWrite::acquire(&root)?;
-    let previous = if safe_path(&root, DATABASE)?.exists() {
-        Some(open(&root)?)
-    } else {
-        if safe_path(&root, "PIONEER")?.exists() {
-            return Err("This USB has no supported traditional Rekordbox library".into());
-        }
-        None
-    };
-    let previous_bytes = previous.as_ref().map(|d| d.database.bytes.as_slice());
-    if expected.is_some() && expected != previous_bytes {
+    let previous = super::open_existing(&root)?;
+    let previous_model = previous.as_ref().map(|d| d.database.bytes.as_slice());
+    let previous_bytes = previous
+        .as_ref()
+        .filter(|d| d.has_legacy)
+        .map(|d| d.database.bytes.as_slice());
+    if expected.is_some() && expected != previous_model {
         return Err("USB library changed. Refresh it before saving.".into());
     }
     let base = match &previous {
@@ -103,13 +100,17 @@ pub(super) fn run(
         report(95.0 + 3.0 * fraction, ExportPhase::Publishing)
     })?;
     report(99.0, ExportPhase::Saving);
-    if let Err(error) = commit(&root, &output, previous_bytes, &updated, &staged.sources) {
+    if let Err(error) = commit(&root, &output, previous.as_ref(), &updated, &staged.sources) {
         let unchanged = match std::fs::read(safe_path(&root, DATABASE)?) {
             Ok(bytes) => previous_bytes == Some(bytes.as_slice()),
-            Err(e) => previous.is_none() && e.kind() == std::io::ErrorKind::NotFound,
+            Err(e) => previous_bytes.is_none() && e.kind() == std::io::ErrorKind::NotFound,
         };
         // An uncertain commit must retain its audio in case the new database reached the device.
-        published.keep = !unchanged;
+        let modern_unchanged = super::onelibrary::Snapshot::read(&root).is_ok_and(|snapshot| {
+            snapshot.as_ref() == previous.as_ref().and_then(|device| device.modern.as_ref())
+        });
+        published.keep =
+            !unchanged || !modern_unchanged || super::journal::pending(&root).unwrap_or(true);
         return Err(error);
     }
     published.keep = true;
