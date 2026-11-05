@@ -36,25 +36,33 @@ fn a_github_check_discovers_the_published_version_without_downloading() {
 
 #[test]
 fn verified_download_replaces_a_disposable_install_and_restart_preserves_arguments() {
-    use std::{fs, os::unix::fs::PermissionsExt, process::Command};
+    use std::{fs, process::Command};
     let temp = tempfile::tempdir().unwrap();
     let archive = temp.path().join("release.tar.gz");
     let staged = temp.path().join("staged");
     fs::create_dir(&staged).unwrap();
     let marker = temp.path().join("restarted");
-    let script = format!(
-        "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo 'openbox 0.2.0'; else printf '%s\\n' \"$@\" > '{}'; fi\n",
-        marker.display()
+    let executable = format!("openbox{}", std::env::consts::EXE_SUFFIX);
+    let source = temp.path().join("fixture.rs");
+    fs::write(&source, format!(
+        "fn main() {{ if std::env::args().nth(1).as_deref() == Some(\"--version\") {{ println!(\"openbox 0.2.0\"); }} else {{ std::fs::write({marker:?}, std::env::args().skip(1).collect::<Vec<_>>().join(\"\\n\") + \"\\n\").unwrap(); }} }}"
+    )).unwrap();
+    assert!(
+        Command::new("rustc")
+            .arg(&source)
+            .arg("-o")
+            .arg(staged.join(&executable))
+            .status()
+            .unwrap()
+            .success()
     );
-    fs::write(staged.join("openbox"), script).unwrap();
-    fs::set_permissions(staged.join("openbox"), fs::Permissions::from_mode(0o755)).unwrap();
     assert!(
         Command::new("tar")
             .args(["-czf"])
             .arg(&archive)
             .arg("-C")
             .arg(&staged)
-            .arg("openbox")
+            .arg(&executable)
             .status()
             .unwrap()
             .success()
@@ -63,7 +71,9 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
     use sha2::{Digest, Sha256};
     let digest = format!("{:x}", Sha256::digest(&bytes));
     let (base, server) = release_server(bytes, digest.clone());
-    let installed = temp.path().join("installed-openbox");
+    let installed = temp
+        .path()
+        .join(format!("installed-openbox{}", std::env::consts::EXE_SUFFIX));
     fs::write(&installed, "old application").unwrap();
     let client = openbox_updater::Client::with_api_base(&base);
     let release = client.check("0.1.0").unwrap().unwrap();
