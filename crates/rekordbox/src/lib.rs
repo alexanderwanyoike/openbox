@@ -270,6 +270,52 @@ mod tests {
     }
 
     #[test]
+    fn exporting_old_openbox_analysis_refreshes_the_grid_without_changing_the_source_library() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let path = music.path().join("rhythm.wav");
+        openbox_test_support::rhythm(&path);
+        let mut library = Library::default();
+        let id = library.import(path, "Rhythm".into(), "Artist".into());
+        let old = openbox_domain::TrackAnalysis {
+            version: "bliss-aubio-0.2.4/libkeyfinder-2.2.8/1".into(),
+            beats: (0..40)
+                .map(|i| openbox_domain::Beat {
+                    time_seconds: 0.2 + f64::from(i) * 0.49,
+                    bpm: 122.45,
+                    number: (i % 4 + 1) as u16,
+                })
+                .collect(),
+        };
+        library.set_details(
+            id,
+            openbox_domain::TrackDetails {
+                bpm: Some(122.45),
+                analysis: Some(old.clone()),
+                ..Default::default()
+            },
+        );
+        let playlist = library.create_playlist("Set").unwrap();
+        library.add_to_playlist(playlist, id).unwrap();
+        let device = export(&library, &[playlist], usb.path()).unwrap();
+        let track = &device.library.tracks()[0];
+        assert!((track.details.bpm.unwrap() - 120.0).abs() < 0.01);
+        assert!(track.details.analysis.as_ref().unwrap().beats.len() > 60);
+        assert_eq!(
+            library.track(id).unwrap().details.analysis.as_ref(),
+            Some(&old)
+        );
+        let before = openbox_test_support::files(usb.path());
+        let repeated = export(&library, &[playlist], usb.path()).unwrap();
+        assert_eq!(repeated.library.tracks()[0].id, track.id);
+        for (path, bytes) in before {
+            if path.starts_with("Contents") || path.starts_with("PIONEER/USBANLZ") {
+                assert_eq!(std::fs::read(usb.path().join(path)).unwrap(), bytes);
+            }
+        }
+    }
+
+    #[test]
     fn detected_metadata_and_beat_grid_are_exported_as_device_records() {
         let music = tempfile::tempdir().unwrap();
         let usb = tempfile::tempdir().unwrap();
@@ -320,6 +366,12 @@ mod tests {
             })
             .unwrap();
         assert!(grid.beats.len() > 40);
+        for beat in &grid.beats {
+            assert_eq!(beat.tempo, 12000);
+        }
+        for pair in grid.beats.windows(2) {
+            assert_eq!(pair[1].time - pair[0].time, 500);
+        }
         let metadata = openbox_metadata::read(&song.path, &music.path().join("artwork")).unwrap();
         assert_eq!(metadata.details.album, "Album");
         assert_eq!(metadata.details.genre, "House");
