@@ -325,6 +325,35 @@ mod tests {
     }
 
     #[test]
+    fn saving_refuses_an_active_onelibrary_wal_without_modifying_any_files() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+        let db = onelibrary::connect(&usb.path().join(onelibrary::DATABASE)).unwrap();
+        db.execute_batch("PRAGMA wal_autocheckpoint=0; UPDATE content SET djPlayCount=31")
+            .unwrap();
+        assert!(
+            std::fs::metadata(usb.path().join(format!("{}-wal", onelibrary::DATABASE)))
+                .unwrap()
+                .len()
+                > 0
+        );
+        let device = open(usb.path()).unwrap();
+        let before = openbox_test_support::files(usb.path());
+        let error = save_playlists(&device)
+            .expect_err("An active SQLite writer must not have its database replaced");
+        assert!(error.contains("Close rekordbox"), "{error}");
+        assert_eq!(openbox_test_support::files(usb.path()), before);
+        assert_eq!(
+            db.query_row("SELECT djPlayCount FROM content", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            31
+        );
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
