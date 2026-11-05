@@ -12,8 +12,6 @@ pub fn newer_stable(current: &str, candidate: &str) -> Result<bool, semver::Erro
 use self_update::backends::github;
 use std::{path::Path, time::Duration};
 
-pub const ASSET: &str = "openbox-x86_64-unknown-linux-gnu.tar.gz";
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Release {
     pub version: String,
@@ -26,8 +24,10 @@ pub enum UpdateError {
     UnsupportedPlatform(String),
     #[error("Update service unavailable: {0}")]
     Service(String),
-    #[error("The release has no compatible verified Linux download")]
+    #[error("The release has no compatible verified download")]
     InvalidRelease,
+    #[error("Updates on macOS require an installed Openbox.app bundle")]
+    InvalidInstallPath,
     #[error("The requested release is not newer than the installed version")]
     NotNewer,
     #[error("Cannot restart Openbox: {0}")]
@@ -56,25 +56,32 @@ impl Client {
         }
     }
 
-    fn builder(&self, current: &str) -> github::UpdateBuilder {
+    fn builder(&self, current: &str) -> Result<github::UpdateBuilder, UpdateError> {
+        let package = Package::current()?;
         let mut builder = github::Update::configure();
         builder
             .repo_owner("alexanderwanyoike")
             .repo_name("openbox")
             .bin_name("openbox")
             .current_version(current)
-            .target("x86_64-unknown-linux-gnu")
+            .target(package.target)
             .unattended()
             .timeout(Duration::from_secs(120))
-            .asset_matcher(|assets| assets.iter().find(|asset| asset.name() == ASSET).cloned());
+            .asset_matcher(move |assets| {
+                assets
+                    .iter()
+                    .find(|asset| asset.name() == package.asset)
+                    .cloned()
+            });
         if let Some(base) = &self.api_base {
             builder.api_base_url(base);
         }
-        builder
+        Ok(builder)
     }
 
     pub fn check(&self, current: &str) -> Result<Option<Release>, UpdateError> {
-        let updater = self.builder(current).build().map_err(service)?;
+        let package = Package::current()?;
+        let updater = self.builder(current)?.build().map_err(service)?;
         let releases = match updater.get_latest_release() {
             Ok(releases) => releases,
             Err(error) if error.http_status() == Some(404) => return Ok(None),
@@ -87,7 +94,7 @@ impl Client {
             return Ok(None);
         }
         if !release.assets().iter().any(|asset| {
-            asset.name() == ASSET
+            asset.name() == package.asset
                 && asset.digest().is_some_and(|digest| {
                     digest.starts_with("sha256:")
                         && digest.len() == 71
@@ -99,7 +106,7 @@ impl Client {
         let digest = release
             .assets()
             .iter()
-            .find(|asset| asset.name() == ASSET)
+            .find(|asset| asset.name() == package.asset)
             .and_then(|asset| asset.digest())
             .ok_or(UpdateError::InvalidRelease)?;
         Ok(Some(Release {
@@ -118,13 +125,30 @@ impl Client {
             return Err(UpdateError::NotNewer);
         }
         let expected = format!("openbox {}", release.version);
-        self.builder(current)
+        let mut builder = self.builder(current)?;
+        #[cfg(target_os = "macos")]
+        {
+            let bundle = destination
+                .ancestors()
+                .find(|path| path.extension() == Some(std::ffi::OsStr::new("app")))
+                .ok_or(UpdateError::InvalidInstallPath)?;
+            builder
+                .bundle_path_in_archive("Openbox.app")
+                .bundle_install_path(bundle);
+        }
+        #[cfg(not(target_os = "macos"))]
+        builder.bin_install_path(destination);
+        builder
             .release_tag(format!("v{}", release.version))
-            .bin_install_path(destination)
             .verify_checksum(self_update::Checksum::Sha256(release.sha256.clone()))
             .progress_callback(progress)
             .verify_binary(move |path| {
-                let output = std::process::Command::new(path)
+                let executable = if cfg!(target_os = "macos") {
+                    path.join("Contents/MacOS/openbox")
+                } else {
+                    path.to_path_buf()
+                };
+                let output = std::process::Command::new(executable)
                     .arg("--version")
                     .output()
                     .map_err(|error| {
