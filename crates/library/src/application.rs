@@ -158,12 +158,10 @@ impl Workspace {
             let mut details = track.details.clone();
             if let Some(artwork) = &details.artwork {
                 let destination = assets.path().join(format!("{id}.jpg"));
-                std::fs::copy(artwork, &destination).map_err(|e| e.to_string())?;
-                std::fs::File::options()
-                    .write(true)
-                    .open(&destination)
-                    .and_then(|f| f.sync_all())
-                    .map_err(|e| e.to_string())?;
+                let mut input = std::fs::File::open(artwork).map_err(|e| e.to_string())?;
+                let mut output = std::fs::File::create(&destination).map_err(|e| e.to_string())?;
+                std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
+                output.sync_all().map_err(|e| e.to_string())?;
                 details.artwork = Some(destination);
             }
             updated.set_details(local_id, details);
