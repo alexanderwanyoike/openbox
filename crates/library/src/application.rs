@@ -149,19 +149,15 @@ impl Workspace {
                 .and_then(|s| s.to_str())
                 .unwrap_or("audio");
             let destination = assets.path().join(format!("{id}.{extension}"));
-            let mut input = std::fs::File::open(&track.path)
+            let input = std::fs::File::open(&track.path)
                 .map_err(|e| format!("Cannot import {}: {e}", track.title))?;
-            let mut output = std::fs::File::create(&destination).map_err(|e| e.to_string())?;
-            std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
-            output.sync_all().map_err(|e| e.to_string())?;
+            crate::assets::copy(input, &destination)?;
             let local_id = updated.import(destination, track.title.clone(), track.artist.clone());
             let mut details = track.details.clone();
             if let Some(artwork) = &details.artwork {
                 let destination = assets.path().join(format!("{id}.jpg"));
-                let mut input = std::fs::File::open(artwork).map_err(|e| e.to_string())?;
-                let mut output = std::fs::File::create(&destination).map_err(|e| e.to_string())?;
-                std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
-                output.sync_all().map_err(|e| e.to_string())?;
+                let input = std::fs::File::open(artwork).map_err(|e| e.to_string())?;
+                crate::assets::copy(input, &destination)?;
                 details.artwork = Some(destination);
             }
             updated.set_details(local_id, details);
