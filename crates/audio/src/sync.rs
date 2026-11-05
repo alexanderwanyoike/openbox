@@ -58,7 +58,7 @@ impl BeatGrid {
         let period = self
             .beats
             .get(index + 1)
-            .map_or(60.0 / self.bpm, |next| next - at);
+            .map_or_else(|| 60.0 / self.local_bpm(time), |next| next - at);
         (((time - at) / period).rem_euclid(1.0), period)
     }
     pub(crate) fn align(&self, time: f64, phase: f64, duration: f64) -> Option<f64> {
