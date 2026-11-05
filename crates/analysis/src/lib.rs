@@ -1,3 +1,4 @@
+mod grid;
 mod key;
 
 use aubio::{OnsetMode, Tempo};
@@ -13,7 +14,7 @@ const RATE: u32 = 22050;
 const HOP: usize = 64;
 static KEYFINDER_LOCK: Mutex<()> = Mutex::new(());
 
-pub const VERSION: &str = "bliss-aubio-0.2.4/libkeyfinder-2.2.8/1";
+pub const VERSION: &str = "bliss-aubio-0.2.4/libkeyfinder-2.2.8/mixxx-grid-1";
 
 pub struct Analysis {
     pub bpm: Option<f64>,
@@ -46,6 +47,7 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
     let mut buffer = [0u8; HOP * 4];
     let mut beats: Vec<Beat> = Vec::new();
     let mut bpms = Vec::new();
+    let mut sample_count = 0u64;
     let result: Result<(), String> = (|| {
         loop {
             let mut count = 0;
@@ -67,6 +69,7 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
                 *sample = f32::from_le_bytes(bytes.try_into().unwrap());
             }
             key.push(&samples[..count / 4])?;
+            sample_count += (count / 4) as u64;
             if tempo.do_result(&samples[..]).map_err(|e| e.to_string())? > 0.0 {
                 let time = f64::from(tempo.get_last_s());
                 let bpm = f64::from(tempo.get_bpm());
@@ -102,11 +105,16 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
         ));
     }
     bpms.sort_by(f64::total_cmp);
-    let bpm = (beats.len() >= 4)
+    let mut bpm = (beats.len() >= 4)
         .then(|| bpms.get(bpms.len() / 2).copied())
         .flatten();
     if bpm.is_none() {
         beats.clear();
+    } else if let Some((stable_bpm, stable_beats)) =
+        grid::stabilize(&beats, sample_count as f64 / f64::from(RATE))
+    {
+        bpm = Some(stable_bpm);
+        beats = stable_beats;
     }
     Ok(Analysis {
         bpm,
@@ -136,6 +144,26 @@ mod tests {
         for beat in beats.iter().skip(10) {
             assert!((beat * 2.0 - (beat * 2.0).round()).abs() < 0.15, "{beat}");
         }
+    }
+
+    #[test]
+    fn a_constant_tempo_recording_produces_an_even_grid_instead_of_detector_jitter() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("constant-tempo.wav");
+        openbox_test_support::rhythm(&path);
+        let analysis = analyze(&path).unwrap();
+        let bpm = analysis.bpm.unwrap();
+        assert!((bpm - 120.0).abs() < 0.01, "{bpm}");
+        let interval = 60.0 / bpm;
+        assert!(analysis.grid.beats.len() > 60);
+        for pair in analysis.grid.beats.windows(2) {
+            let distance = pair[1].time_seconds - pair[0].time_seconds;
+            assert!(
+                (distance - interval).abs() < 0.000_001,
+                "CDJ grid interval {distance} does not match the track tempo {bpm}"
+            );
+        }
+        assert!(analysis.grid.beats[0].time_seconds < interval);
     }
 
     #[test]

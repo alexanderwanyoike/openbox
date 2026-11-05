@@ -17,7 +17,7 @@ A **preview deck** holds one decoded clip, its playback position, pitch and temp
 
 **Export progress** reports completed transfer work, including encoder audio time and publication stages. It is monotonic and reaches 100% only after the committed device library is reopened.
 
-A **track analysis** stores aubio beat timestamps and tempo readings and libkeyfinder musical key. New imports analyze automatically; bulk reanalysis keeps identities and playlist membership. BPM/key tags provide fallback when audio has no estimate. Automatic 4/4 bar numbering is a reference, not a verified musical downbeat.
+A **track analysis** uses aubio beat detections and libkeyfinder musical key. Mixxx-derived post-processing stabilizes sufficiently long constant-tempo regions into an even grid. Sparse or unstable detections retain the detector output. New imports analyze automatically; bulk reanalysis keeps identities and playlist membership. Export refreshes outdated Openbox analysis while preserving imported device grids and local records. BPM/key tags provide fallback when audio has no estimate. Automatic 4/4 bar numbering is a reference, not a verified musical downbeat. See ADR 013.
 
 **Artwork** is a cached JPEG extracted by the metadata adapter. Device exports embed it in ID3v2.3 and register 80x80 and 240x240 images without altering existing artwork. USB imports copy the cover locally. The analysis adapter uses established engines; the metadata adapter owns tags and image normalization. See ADR 004.
 
