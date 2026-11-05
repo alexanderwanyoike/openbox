@@ -427,7 +427,7 @@ fn prepare_song(
     progress: &mut dyn FnMut(f32, ExportPhase),
 ) -> Result<PreparedSong, String> {
     let mut analyzed = source.clone();
-    if analyzed.details.analysis.is_none() {
+    if requires_analysis(&analyzed) {
         let result = openbox_analysis::analyze(&analyzed.path)?;
         if result.bpm.is_some() {
             analyzed.details.bpm = result.bpm;
@@ -576,8 +576,12 @@ fn filename(title: &str) -> String {
 
 fn source_fingerprint(track: &openbox_domain::Track) -> Result<String, String> {
     let audio = storage::fingerprint(&track.path)?;
-    let metadata = serde_json::to_vec(&(&track.title, &track.artist, &track.details))
+    let mut metadata = serde_json::to_vec(&(&track.title, &track.artist, &track.details))
         .map_err(|e| e.to_string())?;
+    if requires_analysis(track) {
+        // An engine update must invalidate a cached export made from the same old library record.
+        metadata.extend_from_slice(openbox_analysis::VERSION.as_bytes());
+    }
     let artwork = track
         .details
         .artwork
@@ -589,6 +593,12 @@ fn source_fingerprint(track: &openbox_domain::Track) -> Result<String, String> {
         "{audio}:{}:{artwork}",
         storage::fingerprint_bytes(&metadata)
     ))
+}
+
+fn requires_analysis(track: &Track) -> bool {
+    track.details.analysis.as_ref().is_none_or(|grid| {
+        grid.version.starts_with("bliss-aubio-") && grid.version != openbox_analysis::VERSION
+    })
 }
 
 fn transcode(
