@@ -75,11 +75,15 @@ impl App {
             .map_or("Select one track in either collection", |t| {
                 t.artist.as_str()
             });
-        let bpm = deck
-            .track
-            .as_ref()
-            .and_then(|t| t.details.bpm)
-            .map(|bpm| format!("{:.1}", bpm * (1.0 + deck.pitch / 100.0)))
+        let bpm = state
+            .bpm
+            .or_else(|| {
+                deck.track
+                    .as_ref()
+                    .and_then(|track| track.details.bpm)
+                    .map(|bpm| bpm * (1.0 + deck.pitch / 100.0))
+            })
+            .map(|bpm| format!("{bpm:.1}"))
             .unwrap_or_else(|| "--.-".into());
         let enabled = deck.clip.is_some() && !deck.loading && self.preview.engine.is_some();
         let control = move |control| Message::Preview(Event::Control(id, control));
@@ -247,6 +251,48 @@ impl App {
             icons::hint(
                 action("Set cue", control(DeckControl::SetCue), enabled),
                 "Set the temporary cue at this position and pause"
+            ),
+            icons::hint(
+                action("Master", Message::Preview(Event::SetLeader(id)), enabled).style(
+                    move |theme, status| {
+                        let mut style = view::quiet(theme, status);
+                        if self.preview.leader == id {
+                            style.text_color = accent;
+                        }
+                        style
+                    }
+                ),
+                "Use this deck as the sync master"
+            ),
+            icons::hint(
+                action(
+                    if state.sync_leader.is_some() {
+                        if state.sync_phase { "SYNC ON" } else { "TEMPO" }
+                    } else {
+                        "Sync"
+                    },
+                    Message::Preview(Event::Sync(id)),
+                    enabled
+                        && self.preview.leader != id
+                        && self
+                            .preview
+                            .decks
+                            .iter()
+                            .all(|deck| deck.track.as_ref().is_some_and(|track| track
+                                .details
+                                .analysis
+                                .as_ref()
+                                .is_some_and(|analysis| analysis.beats.len() > 1)))
+                )
+                .style(move |theme, status| {
+                    let mut style = view::secondary(theme, status);
+                    if state.sync_leader.is_some() {
+                        style.background = Some(accent.into());
+                        style.border.color = accent;
+                    }
+                    style
+                }),
+                "Follow the playing master. TEMPO waits for a usable beat grid or Play; SYNC ON aligns beats. Manual pitch or seeking releases sync"
             ),
             Space::new().width(Length::Fill),
             icons::hint(

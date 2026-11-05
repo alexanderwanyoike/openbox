@@ -33,21 +33,33 @@ impl Args {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let app = App::load(args.library_path(), args.usb).map_err(std::io::Error::other)?;
-    iced::application(move || app.clone(), App::update, App::view)
-        .font(include_bytes!("../resources/fonts/Manrope.ttf").as_slice())
-        .font(include_bytes!("../resources/fonts/Manrope-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../resources/fonts/Manrope-Bold.ttf").as_slice())
-        .default_font(iced::Font::with_name("Manrope"))
-        .title("Openbox")
-        .theme(App::theme)
-        .subscription(App::subscription)
-        .window(iced::window::Settings {
-            size: iced::Size::new(1440.0, 900.0),
-            min_size: Some(iced::Size::new(1000.0, 720.0)),
-            decorations: false,
+    iced::application(
+        move || {
+            let task = app.startup();
+            (app.clone(), task)
+        },
+        App::update,
+        App::view,
+    )
+    .font(include_bytes!("../resources/fonts/Manrope.ttf").as_slice())
+    .font(include_bytes!("../resources/fonts/Manrope-SemiBold.ttf").as_slice())
+    .font(include_bytes!("../resources/fonts/Manrope-Bold.ttf").as_slice())
+    .default_font(iced::Font::with_name("Manrope"))
+    .title("Openbox")
+    .theme(App::theme)
+    .subscription(App::subscription)
+    .window(iced::window::Settings {
+        size: iced::Size::new(1440.0, 900.0),
+        min_size: Some(iced::Size::new(1000.0, 720.0)),
+        decorations: false,
+        platform_specific: iced::window::settings::PlatformSpecific {
+            application_id: openbox::branding::APPLICATION_ID.into(),
             ..Default::default()
-        })
-        .run()?;
+        },
+        icon: Some(openbox::branding::window_icon().map_err(std::io::Error::other)?),
+        ..Default::default()
+    })
+    .run()?;
     Ok(())
 }
 

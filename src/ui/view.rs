@@ -90,6 +90,7 @@ impl App {
                     .color(colors.muted),
             );
         }
+        status = status.push(self.update_footer());
         let mut body = column![].spacing(0).height(Length::Fill);
         if self.preview.visible {
             body = body.push(self.players());

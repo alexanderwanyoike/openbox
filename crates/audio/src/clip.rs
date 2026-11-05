@@ -1,3 +1,4 @@
+use crate::DecodeError;
 use crate::waveform::Waveform;
 use std::{
     io::Read,
@@ -28,7 +29,29 @@ impl Clip {
         })
     }
 
-    pub fn decode(path: &Path) -> Result<Self, String> {
+    pub fn decode(path: &Path) -> Result<Self, DecodeError> {
+        match path.metadata() {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(DecodeError::MissingFile(path.into()));
+            }
+            Err(error) => {
+                return Err(DecodeError::UnreadableFile {
+                    path: path.into(),
+                    details: error.to_string(),
+                });
+            }
+            Ok(metadata) if !metadata.is_file() => {
+                return Err(DecodeError::UnreadableFile {
+                    path: path.into(),
+                    details: "This path is not a file".into(),
+                });
+            }
+            Ok(_) => {}
+        }
+        let unreadable = |details: String| DecodeError::UnreadableFile {
+            path: path.into(),
+            details,
+        };
         let mut child = Command::new("ffmpeg")
             .args(["-nostdin", "-v", "error", "-i"])
             .arg(path)
@@ -38,7 +61,7 @@ impl Clip {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Cannot decode preview audio: {e}"))?;
+            .map_err(|e| DecodeError::DecoderUnavailable(e.to_string()))?;
         let mut stderr = child.stderr.take().unwrap();
         let diagnostics = std::thread::spawn(move || {
             let mut bytes = Vec::new();
@@ -57,23 +80,22 @@ impl Clip {
         if read.is_err() || bytes.len() as u64 > maximum {
             let _ = child.kill();
         }
-        let status = child.wait().map_err(|e| e.to_string())?;
+        let status = child.wait().map_err(|e| unreadable(e.to_string()))?;
         let diagnostics = diagnostics.join().unwrap_or_default();
-        read.map_err(|e| e.to_string())?;
+        read.map_err(|e| unreadable(e.to_string()))?;
         if bytes.len() as u64 > maximum {
-            return Err("Preview supports songs up to 30 minutes long".into());
+            return Err(DecodeError::TooLong);
         }
         if !status.success() {
-            return Err(format!(
-                "Cannot preview this file: {}",
-                String::from_utf8_lossy(&diagnostics).trim()
+            return Err(unreadable(
+                String::from_utf8_lossy(&diagnostics).trim().into(),
             ));
         }
         let samples = bytes
             .chunks_exact(2)
             .map(|b| i16::from_le_bytes([b[0], b[1]]))
             .collect();
-        Self::from_pcm(samples, PREVIEW_RATE)
+        Self::from_pcm(samples, PREVIEW_RATE).map_err(DecodeError::InvalidAudio)
     }
 
     pub fn duration(&self) -> f64 {

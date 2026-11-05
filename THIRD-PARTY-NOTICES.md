@@ -1,6 +1,6 @@
 # Third-party analysis components
 
-Openbox-authored source files retain their MIT license. The application links GPL components, so GPLv3 requirements apply when distributing the combined executable. Include the applicable licenses and corresponding source for the complete combined program when distributing binaries. This repository does not distribute a compiled binary.
+Openbox-authored source files retain their MIT license. The application links GPL components, so GPLv3 requirements apply when distributing the combined executable. Include the applicable licenses and corresponding source for the complete combined program when distributing binaries. Release source bundles include the repository and vendored Cargo dependencies for the distributed executable.
 
 | Component | Version / source | License |
 |---|---|---|
@@ -14,6 +14,7 @@ Upstream references: [aubio](https://aubio.org/), [libkeyfinder](https://github.
 
 The libkeyfinder and FFTW license texts are included alongside the vendored files. Cargo.lock identifies the exact Rust dependencies. See their published crate packages for their original notices and source.
 
+The update adapter uses `self_update` 1.3.3 and `self-replace` 1.5 under MIT, with `semver` under MIT or Apache-2.0. Their sources and notices are included in the locked Cargo dependencies and corresponding-source bundle.
 ## Native interface
 
 The application menus use [Iced AW](https://github.com/iced-rs/iced_aw), MIT licensed, with only its menu feature enabled. The bundled Manrope Regular, SemiBold and Bold faces are static instances of the project's Manrope variable font. Copyright 2019 The Manrope Project Authors. The SIL Open Font License is included in `resources/fonts/Manrope-LICENSE.txt`.

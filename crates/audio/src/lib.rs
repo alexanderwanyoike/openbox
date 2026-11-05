@@ -1,7 +1,11 @@
+mod decode_error;
+pub use decode_error::DecodeError;
 mod clip;
 mod engine;
 mod mixer;
+mod sync;
 mod waveform;
+pub use sync::{BeatGrid, SyncError};
 
 pub use clip::Clip;
 pub use engine::Engine;
@@ -152,5 +156,124 @@ mod tests {
         mixer.control(DeckId::A, DeckControl::Rate(1.08));
         mixer.render(&mut output, 10, 2);
         assert!((mixer.snapshot().decks[0].position - 1.216).abs() < 0.0001);
+    }
+}
+
+#[cfg(test)]
+mod sync_tests {
+    use super::*;
+    #[test]
+    fn sync_matches_the_leaders_tempo_and_phase_and_manual_pitch_releases_it() {
+        let mut mixer = Mixer::default();
+        for (id, bpm, offset) in [(DeckId::A, 120.0, 0.1), (DeckId::B, 126.0, 0.23)] {
+            mixer.load(
+                id,
+                Clip::from_pcm(vec![1000; 44100 * 2 * 40], 44100).unwrap(),
+            );
+            let beats = (0..80).map(|n| offset + n as f64 * 60.0 / bpm).collect();
+            mixer.set_beat_grid(id, BeatGrid::new(bpm, beats).unwrap());
+        }
+        mixer.control(DeckId::A, DeckControl::Seek(5.2));
+        mixer.control(DeckId::B, DeckControl::Seek(9.8));
+        mixer.control(DeckId::A, DeckControl::Rate(1.02));
+        mixer.control(DeckId::A, DeckControl::PlayPause);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        let snapshot = mixer.snapshot();
+        assert!((snapshot.decks[1].rate - 120.0 * 1.02 / 126.0).abs() < 1e-9);
+        assert_eq!(snapshot.decks[1].sync_leader, Some(DeckId::A));
+        let phase =
+            |time: f64, bpm: f64, offset: f64| ((time - offset) * bpm / 60.0).rem_euclid(1.0);
+        assert!(
+            (phase(snapshot.decks[0].position, 120.0, 0.1)
+                - phase(snapshot.decks[1].position, 126.0, 0.23))
+            .abs()
+                < 1e-6
+        );
+        mixer.render(&mut vec![0.0; 44100 * 2 * 10], 44100, 2);
+        let snapshot = mixer.snapshot();
+        let delta = phase(snapshot.decks[0].position, 120.0, 0.1)
+            - phase(snapshot.decks[1].position, 126.0, 0.23);
+        assert!(delta.abs() < 0.001 || (delta.abs() - 1.0).abs() < 0.001);
+        mixer.control(DeckId::A, DeckControl::Rate(1.04));
+        assert!((mixer.snapshot().decks[1].rate - 120.0 * 1.04 / 126.0).abs() < 1e-9);
+        mixer.control(DeckId::B, DeckControl::Rate(1.0));
+        assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
+    }
+}
+
+#[cfg(test)]
+mod sync_lock_tests {
+    use super::*;
+    #[test]
+    fn a_synced_deck_corrects_phase_drift_without_jumping_its_playhead() {
+        let mut mixer = Mixer::default();
+        for id in [DeckId::A, DeckId::B] {
+            mixer.load(id, Clip::from_pcm(vec![1000; 1000 * 2 * 60], 1000).unwrap());
+            let beats = (0..120)
+                .map(|n| {
+                    let position = n as f64 * 0.5;
+                    if id == DeckId::B && n > 10 {
+                        position + (n - 10) as f64 * 0.005
+                    } else {
+                        position
+                    }
+                })
+                .collect();
+            mixer.set_beat_grid(id, BeatGrid::new(120.0, beats).unwrap());
+        }
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        mixer.control(DeckId::A, DeckControl::PlayPause);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
+        let mut output = vec![0.0; 100];
+        let mut previous = 0.0;
+        for _ in 0..400 {
+            mixer.render(&mut output, 1000, 2);
+            let position = mixer.snapshot().decks[1].position;
+            assert!((position - previous - 0.05).abs() < 0.002);
+            previous = position;
+        }
+        let position = mixer.snapshot().decks[1].position;
+        let phase = ((position - 5.0) / 0.505).rem_euclid(1.0);
+        assert!(
+            !(0.04..=0.96).contains(&phase),
+            "Follower drifted to phase {phase}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod grid_refresh_tests {
+    use super::*;
+    #[test]
+    fn replacing_analysis_releases_sync_without_moving_either_deck() {
+        let mut mixer = Mixer::default();
+        for id in [DeckId::A, DeckId::B] {
+            mixer.load(id, Clip::from_pcm(vec![1000; 20000], 1000).unwrap());
+            mixer.set_beat_grid(id, BeatGrid::new(120.0, vec![0.0, 0.5, 1.0]).unwrap());
+        }
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        let before = mixer.snapshot();
+        mixer.set_beat_grid(
+            DeckId::A,
+            BeatGrid::new(121.0, vec![0.0, 0.49, 0.98]).unwrap(),
+        );
+        assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
+        assert_eq!(mixer.snapshot().decks[0].position, before.decks[0].position);
+        assert_eq!(mixer.snapshot().decks[1].position, before.decks[1].position);
+    }
+}
+
+#[cfg(test)]
+mod decode_error_tests {
+    use super::*;
+    #[test]
+    fn a_missing_track_has_an_actionable_message_without_decoder_output() {
+        let folder = tempfile::tempdir().unwrap();
+        let error = Clip::decode(&folder.path().join("missing.mp3")).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("could not be found"), "{message}");
+        assert!(message.contains("missing.mp3"));
+        assert!(!message.contains("[in#") && !message.contains("Error opening input"));
     }
 }

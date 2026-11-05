@@ -34,13 +34,15 @@ description = "Native DJ library and Rekordbox USB management with Iced"
 [features]
 default = ["desktop", "gpu"]
 gpu = ["desktop", "iced/wgpu"]
-desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio", "dep:iced_aw"]
+desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio", "dep:image", "dep:iced_aw"]
 
 [dependencies]
 iced_aw = { version = "0.14.1", default-features = false, features = ["menu"], optional = true }
 serde.workspace = true
 serde_json.workspace = true
 openbox-storage.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+openbox-updater = { path = "crates/updater" }
 openbox-domain.workspace = true
 openbox-library.workspace = true
 openbox-rekordbox.workspace = true
