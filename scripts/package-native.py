@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 import shutil
@@ -18,7 +20,12 @@ class PackageError:
 
 
 def package(
-    binary: Path, target: str, version: str, licenses: Path, output: Path
+    binary: Path,
+    target: str,
+    version: str,
+    licenses: Path,
+    output: Path,
+    appimage_tools: Path = ROOT / ".native/appimage",
 ) -> Path | PackageError:
     if target not in [
         "x86_64-unknown-linux-gnu",
@@ -97,11 +104,56 @@ def package(
                         if item.is_file():
                             destination.write(item, arcname=item.relative_to(staging))
                 return archive
+            if target == "x86_64-unknown-linux-gnu":
+                appdir = staging / "Openbox.AppDir"
+                (appdir / "usr/bin").mkdir(parents=True)
+                shutil.move(staging / "openbox", appdir / "usr/bin/openbox")
+                shutil.move(staging / "share", appdir / "usr/share")
+                legal = appdir / "usr/share/openbox"
+                legal.mkdir()
+                for name in [
+                    "licenses",
+                    "LICENSE",
+                    "THIRD-PARTY-NOTICES.md",
+                    "README.md",
+                ]:
+                    shutil.move(staging / name, legal / name)
+                shutil.copytree(
+                    appimage_tools / "licenses", legal / "licenses/AppImage"
+                )
+                (appdir / "AppRun").symlink_to("usr/bin/openbox")
+                (appdir / f"{identity}.desktop").symlink_to(
+                    f"usr/share/applications/{identity}.desktop"
+                )
+                (appdir / f"{identity}.svg").symlink_to(
+                    f"usr/share/icons/hicolor/scalable/apps/{identity}.svg"
+                )
+                (appdir / ".DirIcon").symlink_to(f"{identity}.svg")
+                image = (output / f"openbox-{target}.AppImage").resolve()
+                subprocess.run(
+                    [
+                        str(appimage_tools.resolve() / "appimagetool"),
+                        "--appimage-extract-and-run",
+                        "--no-appstream",
+                        "--runtime-file",
+                        str(appimage_tools.resolve() / "runtime-x86_64"),
+                        str(appdir),
+                        str(image),
+                    ],
+                    env={**os.environ, "ARCH": "x86_64", "VERSION": version},
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                image.chmod(0o755)
+                return image
             archive = output / f"openbox-{target}.tar.gz"
             with tarfile.open(archive, "w:gz") as destination:
                 for item in sorted(staging.iterdir()):
                     destination.add(item, arcname=item.name)
         return archive
+    except subprocess.CalledProcessError as error:
+        return PackageError(error.stderr or str(error))
     except (OSError, tarfile.TarError) as error:
         return PackageError(str(error))
 
@@ -113,6 +165,13 @@ def main() -> int:
     parser.add_argument("--version", required=True)
     parser.add_argument("--licenses", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--appimage-tools",
+        type=Path,
+        default=Path(
+            os.environ.get("OPENBOX_APPIMAGE_TOOLS", ROOT / ".native/appimage")
+        ),
+    )
     arguments = parser.parse_args()
     result = package(
         arguments.binary,
@@ -120,6 +179,7 @@ def main() -> int:
         arguments.version,
         arguments.licenses,
         arguments.output,
+        arguments.appimage_tools,
     )
     if isinstance(result, PackageError):
         print(result.message, file=sys.stderr)
