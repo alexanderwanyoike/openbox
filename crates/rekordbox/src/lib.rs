@@ -354,6 +354,31 @@ mod tests {
     }
 
     #[test]
+    fn a_onelibrary_only_usb_opens_without_writing_and_can_receive_playlists() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, a, b) = collection(music.path());
+        let exported = export(&library, &[a], usb.path()).unwrap();
+        std::fs::remove_file(usb.path().join(DATABASE)).unwrap();
+        let before = openbox_test_support::files(usb.path());
+        let device = open(usb.path()).expect("OneLibrary devices must not require export.pdb");
+        assert_eq!(device.library.tracks(), exported.library.tracks());
+        assert_eq!(device.library.playlists(), exported.library.playlists());
+        assert_eq!(openbox_test_support::files(usb.path()), before);
+
+        let updated = export(&library, &[b], usb.path()).unwrap();
+        assert_eq!(updated.library.tracks().len(), 1);
+        assert_eq!(updated.library.playlists().len(), 2);
+        let db = onelibrary::connect(&usb.path().join(onelibrary::DATABASE)).unwrap();
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM playlist", [], |r| r.get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+        assert!(usb.path().join(DATABASE).is_file());
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
