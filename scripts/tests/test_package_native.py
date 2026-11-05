@@ -1,4 +1,5 @@
 import pathlib
+import plistlib
 import subprocess
 import sys
 import tarfile
@@ -47,6 +48,23 @@ class PackageNativeTest(unittest.TestCase):
             self.assertEqual(archive.read('openbox.exe'), self.binary.read_bytes())
             self.assertIn('licenses/COPYING.GPL-3', archive.namelist())
             self.assertIn('THIRD-PARTY-NOTICES.md', archive.namelist())
+
+    def test_mac_archives_contain_a_versioned_application_bundle_and_icon(self):
+        for target in ['aarch64-apple-darwin', 'x86_64-apple-darwin']:
+            with self.subTest(target=target):
+                result = self.package(target)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                with tarfile.open(self.root / f'out/openbox-{target}.tar.gz') as archive:
+                    archive.extractall(self.root / target, filter='data')
+                contents = self.root / target / 'Openbox.app/Contents'
+                info = plistlib.loads((contents / 'Info.plist').read_bytes())
+                self.assertEqual(info['CFBundleExecutable'], 'openbox')
+                self.assertEqual(info['CFBundleShortVersionString'], '0.1.1')
+                self.assertEqual(info['CFBundleIdentifier'], 'io.github.alexanderwanyoike.openbox')
+                self.assertEqual((contents / 'MacOS/openbox').read_bytes(), self.binary.read_bytes())
+                icon = contents / 'Resources' / info['CFBundleIconFile']
+                self.assertTrue(icon.read_bytes().startswith(b'icns'))
+                self.assertTrue((contents / 'Resources/licenses/COPYING.GPL-3').is_file())
 
 
 if __name__ == '__main__':
