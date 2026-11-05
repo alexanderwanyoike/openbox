@@ -98,8 +98,19 @@ impl Preview {
     }
 
     pub fn tick(&mut self) {
-        if let Some(engine) = &self.engine {
+        if let Some(engine) = self.engine.clone() {
             self.snapshot = engine.snapshot();
+            let other = if self.leader == DeckId::A {
+                DeckId::B
+            } else {
+                DeckId::A
+            };
+            if !self.snapshot.decks[self.leader.index()].playing
+                && self.snapshot.decks[other.index()].playing
+            {
+                self.set_leader(other);
+                self.snapshot = engine.snapshot();
+            }
             for (deck, snapshot) in self.decks.iter_mut().zip(self.snapshot.decks) {
                 deck.pitch = (snapshot.pitch_rate - 1.0) * 100.0;
             }
@@ -109,6 +120,32 @@ impl Preview {
                 for deck in &mut self.snapshot.decks {
                     deck.playing = false;
                 }
+            }
+        }
+    }
+
+    fn set_leader(&mut self, id: DeckId) {
+        if self.leader == id {
+            return;
+        }
+        self.leader = id;
+        if let Some(engine) = &self.engine {
+            let active = engine
+                .snapshot()
+                .decks
+                .iter()
+                .any(|deck| deck.sync_leader.is_some());
+            engine.release_sync(id);
+            if active {
+                let other = if id == DeckId::A {
+                    DeckId::B
+                } else {
+                    DeckId::A
+                };
+                self.sync_error = engine
+                    .sync_to(other, id)
+                    .err()
+                    .map(|error| error.to_string());
             }
         }
     }
@@ -201,13 +238,11 @@ impl Preview {
                     engine.control(id, control);
                     self.snapshot = engine.snapshot();
                 }
+                self.tick();
             }
             Event::SetLeader(id) => {
-                self.leader = id;
-                if let Some(engine) = &self.engine {
-                    engine.release_sync(id);
-                    self.tick();
-                }
+                self.set_leader(id);
+                self.tick();
             }
             Event::Sync(id) if id != self.leader => {
                 if let Some(engine) = &self.engine {
