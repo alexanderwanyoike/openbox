@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         size: iced::Size::new(1440.0, 900.0),
         min_size: Some(iced::Size::new(1000.0, 720.0)),
         decorations: false,
+        #[cfg(target_os = "linux")]
         platform_specific: iced::window::settings::PlatformSpecific {
             application_id: openbox::branding::APPLICATION_ID.into(),
             ..Default::default()
