@@ -139,6 +139,26 @@ mod tests {
     }
 
     #[test]
+    fn a_constant_tempo_recording_produces_an_even_grid_instead_of_detector_jitter() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("constant-tempo.wav");
+        openbox_test_support::rhythm(&path);
+        let analysis = analyze(&path).unwrap();
+        let bpm = analysis.bpm.unwrap();
+        assert!((bpm - 120.0).abs() < 0.01, "{bpm}");
+        let interval = 60.0 / bpm;
+        assert!(analysis.grid.beats.len() > 60);
+        for pair in analysis.grid.beats.windows(2) {
+            let distance = pair[1].time_seconds - pair[0].time_seconds;
+            assert!(
+                (distance - interval).abs() < 0.000_001,
+                "CDJ grid interval {distance} does not match the track tempo {bpm}"
+            );
+        }
+        assert!(analysis.grid.beats[0].time_seconds < interval);
+    }
+
+    #[test]
     fn silence_has_no_invented_key_tempo_or_grid_and_corrupt_audio_fails() {
         let directory = tempfile::tempdir().unwrap();
         let silent = directory.path().join("silence.wav");
