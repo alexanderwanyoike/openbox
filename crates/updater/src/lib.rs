@@ -1,3 +1,6 @@
+mod package;
+pub use package::Package;
+
 use semver::Version;
 
 pub fn newer_stable(current: &str, candidate: &str) -> Result<bool, semver::Error> {
@@ -19,6 +22,8 @@ pub struct Release {
 
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum UpdateError {
+    #[error("Updates are unavailable for {0}")]
+    UnsupportedPlatform(String),
     #[error("Update service unavailable: {0}")]
     Service(String),
     #[error("The release has no compatible verified Linux download")]
