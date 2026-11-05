@@ -10,6 +10,7 @@ pub(super) fn commit(
     library: &Library,
     sources: &[SourceLink],
 ) -> Result<(), String> {
+    let modern = super::onelibrary::create(root, pdb)?;
     let mut library = library.clone();
     for track in library.tracks().to_vec() {
         let relative = track
@@ -34,6 +35,8 @@ pub(super) fn commit(
     if previous.as_deref() != expected {
         return Err("USB library changed. Refresh it before saving.".into());
     }
+    let modern_path = safe_path(root, super::onelibrary::DATABASE)?;
+    let staged_modern = storage::prepare(&modern_path, &modern)?;
     let staged_database = storage::prepare(&database_path, pdb)?;
     let staged_manifest = storage::prepare(&manifest_path, &bytes)?;
     if manifest_path.is_dir() {
@@ -66,7 +69,17 @@ pub(super) fn commit(
     staged_database
         .persist(&database_path)
         .map_err(|e| e.to_string())?;
-    if let Err(error) = staged_manifest.persist(&manifest_path) {
+    let publish = staged_modern
+        .persist(&modern_path)
+        .map_err(|e| e.to_string())
+        .and_then(|_| {
+            staged_manifest
+                .persist(&manifest_path)
+                .map(|_| ())
+                .map_err(|e| e.to_string())
+        });
+    if let Err(error) = publish {
+        let _ = std::fs::remove_file(&modern_path);
         // Roll back a normal cache-write failure; a crash is detected by the cache fingerprint.
         let rollback = match previous {
             Some(bytes) => storage::write_atomic(&database_path, &bytes),
