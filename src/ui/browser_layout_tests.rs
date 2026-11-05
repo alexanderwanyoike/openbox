@@ -58,3 +58,54 @@ fn split_browser_has_a_straight_internal_seam_and_rounded_outer_footer_corners()
         );
     }
 }
+
+#[test]
+fn shared_playlist_toolbar_accepts_name_edits() {
+    use iced_graphics::core::widget::operation::Focusable;
+    struct FocusName;
+    impl Operation for FocusName {
+        fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+            children(self);
+        }
+        fn focusable(&mut self, id: Option<&Id>, _: Rectangle, state: &mut dyn Focusable) {
+            if id.is_some_and(|id| *id == Id::new("playlist-name")) {
+                state.focus();
+            }
+        }
+    }
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path().join("usb");
+    openbox_test_support::rekordbox_usb(&root);
+    let mut app = App::load(folder.path().join("library.json"), Some(root)).unwrap();
+    let _ = app.update(Message::OpenPlaylist(Target::Usb, 23));
+    let mut renderer = super::rendering::new_renderer();
+    let mut ui = UserInterface::build(
+        app.view(),
+        iced::Size::new(1440.0, 900.0),
+        Cache::new(),
+        &mut renderer,
+    );
+    ui.operate(&renderer, &mut FocusName);
+    let mut messages = Vec::new();
+    let _ = ui.update(
+        &[iced::Event::Keyboard(keyboard::Event::KeyPressed {
+            key: keyboard::Key::Character("x".into()),
+            modified_key: keyboard::Key::Character("x".into()),
+            physical_key: keyboard::key::Physical::Code(keyboard::key::Code::KeyX),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::default(),
+            text: Some("x".into()),
+            repeat: false,
+        })],
+        mouse::Cursor::Unavailable,
+        &mut renderer,
+        &mut iced_graphics::core::clipboard::Null,
+        &mut messages,
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m,Message::RenameName(name) if name.contains('x'))),
+        "The playlist name field must remain editable after moving into the shared toolbar"
+    );
+}
