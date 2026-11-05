@@ -9,10 +9,51 @@ fn an_appimage_updates_the_outer_file_instead_of_its_read_only_mount() {
     fs::create_dir_all(appdir.join("usr/bin")).unwrap();
     let inner = appdir.join("usr/bin/openbox");
     fs::copy(std::env::current_exe().unwrap(), &inner).unwrap();
-    let outer = directory.path().join("Openbox.AppImage");
-    fs::write(&outer, b"\x7fELF\0\0\0\0AI\x02").unwrap();
+    let outer = if let Some(tools) = std::env::var_os("OPENBOX_APPIMAGE_TOOLS") {
+        let licenses = directory.path().join("licenses");
+        fs::create_dir(&licenses).unwrap();
+        let output = Command::new("python3")
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/../../scripts/package-native.py"
+            ))
+            .arg("--binary")
+            .arg(&inner)
+            .args([
+                "--target",
+                "x86_64-unknown-linux-gnu",
+                "--version",
+                "0.1.1",
+                "--licenses",
+            ])
+            .arg(licenses)
+            .arg("--output")
+            .arg(directory.path())
+            .arg("--appimage-tools")
+            .arg(tools)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        directory
+            .path()
+            .join("openbox-x86_64-unknown-linux-gnu.AppImage")
+    } else {
+        let outer = directory.path().join("Openbox.AppImage");
+        fs::write(&outer, b"\x7fELF\0\0\0\0AI\x02").unwrap();
+        outer
+    };
     let result = directory.path().join("resolved");
-    let output = Command::new(inner)
+    let program = if std::env::var_os("OPENBOX_APPIMAGE_TOOLS").is_some() {
+        &outer
+    } else {
+        &inner
+    };
+    let output = Command::new(program)
+        .env("APPIMAGE_EXTRACT_AND_RUN", "1")
         .args(["--ignored", "--exact", "report_installation_path"])
         .env("APPDIR", &appdir)
         .env("APPIMAGE", &outer)
