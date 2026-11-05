@@ -1,3 +1,5 @@
+mod decode_error;
+pub use decode_error::DecodeError;
 mod clip;
 mod engine;
 mod mixer;
@@ -128,6 +130,20 @@ mod tests {
         mixer.control(DeckId::A, DeckControl::Rate(1.08));
         mixer.render(&mut output, 10, 2);
         assert!((mixer.snapshot().decks[0].position - 1.216).abs() < 0.0001);
+    }
+}
+
+#[cfg(test)]
+mod decode_error_tests {
+    use super::*;
+    #[test]
+    fn a_missing_track_has_an_actionable_message_without_decoder_output() {
+        let folder = tempfile::tempdir().unwrap();
+        let error = Clip::decode(&folder.path().join("missing.mp3")).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("could not be found"), "{message}");
+        assert!(message.contains("missing.mp3"));
+        assert!(!message.contains("[in#") && !message.contains("Error opening input"));
     }
 }
 

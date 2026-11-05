@@ -3,6 +3,7 @@ mod knob;
 mod players;
 mod preview;
 mod selection;
+pub mod updates;
 mod view;
 mod waveform;
 
@@ -91,6 +92,7 @@ pub enum Message {
     UndoUsb,
     Tick,
     Preview(preview::Event),
+    Updates(updates::Event),
 }
 
 #[derive(Clone)]
@@ -127,6 +129,8 @@ pub struct App {
     import_progress: Option<import::ImportProgress>,
     analyzing: bool,
     preview: preview::Preview,
+    updates: updates::State,
+    update_progress: updates::Progress,
 }
 
 impl App {
@@ -164,11 +168,23 @@ impl App {
             import_progress: None,
             analyzing: false,
             preview: preview::Preview::default(),
+            updates: updates::State::default(),
+            update_progress: Arc::new(Mutex::new((0, None))),
         })
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        if self.updates.locked()
+            && !matches!(
+                message,
+                Message::Tick
+                    | Message::Updates(updates::Event::Installed(_) | updates::Event::Restarted(_))
+            )
+        {
+            return Task::none();
+        }
         match message {
+            Message::Updates(event) => return self.update_application(event),
             Message::Tick => {
                 self.preview.tick();
                 if let Some(updates) = &self.progress_updates {
@@ -716,7 +732,11 @@ impl App {
         let audio_live = self.preview.engine.is_some()
             && (self.preview.snapshot.decks.iter().any(|d| d.playing)
                 || self.preview.snapshot.peak > 0.002);
-        if self.progress_updates.is_some() || self.import_updates.is_some() || audio_live {
+        if self.progress_updates.is_some()
+            || self.import_updates.is_some()
+            || audio_live
+            || self.updates.locked()
+        {
             let interval = if audio_live && self.preview.visible {
                 33
             } else {
@@ -1219,5 +1239,26 @@ mod tests {
             app.workspace.library.playlists().last().unwrap().parent,
             None
         );
+    }
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    #[test]
+    fn update_installation_waits_for_usb_work_and_playback_to_finish() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.updates = updates::State::Available(openbox_updater::Release {
+            version: "0.2.0".into(),
+            sha256: "a".repeat(64),
+        });
+        app.busy = true;
+        let _ = app.update(Message::Updates(updates::Event::Install));
+        assert!(matches!(app.updates, updates::State::Available(_)));
+        app.busy = false;
+        app.preview.snapshot.decks[0].playing = true;
+        let _ = app.update(Message::Updates(updates::Event::Install));
+        assert!(matches!(app.updates, updates::State::Available(_)));
     }
 }

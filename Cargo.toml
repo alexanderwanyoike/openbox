@@ -36,6 +36,7 @@ default = ["desktop"]
 desktop = ["dep:iced", "dep:rfd", "dep:tokio", "dep:clap", "dep:openbox-audio", "dep:image"]
 
 [dependencies]
+openbox-updater = { path = "crates/updater" }
 image = { version = "0.25", default-features = false, features = ["png"], optional = true }
 openbox-domain.workspace = true
 openbox-library.workspace = true

@@ -92,7 +92,7 @@ impl Preview {
         }
         let generation = deck.generation;
         Task::perform(
-            background(move || Clip::decode(&track.path)),
+            background(move || Clip::decode(&track.path).map_err(|error| error.to_string())),
             move |result| Event::Loaded(id, generation, result),
         )
     }
