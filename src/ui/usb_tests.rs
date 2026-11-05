@@ -32,3 +32,67 @@ fn device_fixture() -> (tempfile::TempDir, PathBuf) {
     usb::export(&library, &[playlist], &root).unwrap();
     (folder, root)
 }
+
+#[test]
+fn startup_offers_recovery_for_interrupted_saves_without_modifying_the_device() {
+    use iced_graphics::core::{
+        Rectangle,
+        widget::{Id, Operation},
+    };
+    use iced_runtime::user_interface::{Cache, UserInterface};
+    struct RecoveryButton(bool);
+    impl Operation for RecoveryButton {
+        fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+            children(self);
+        }
+        fn container(&mut self, id: Option<&Id>, _: Rectangle) {
+            self.0 |= id.is_some_and(|id| *id == Id::new("usb-recovery"));
+        }
+    }
+    let (folder, root) = device_fixture();
+    let backup = root.join(".openbox/backups/save-desktop-test");
+    std::fs::create_dir_all(&backup).unwrap();
+    let files: Vec<_> = [
+        "PIONEER/rekordbox/export.pdb",
+        "PIONEER/rekordbox/exportLibrary.db",
+        ".openbox/device.json",
+    ]
+    .into_iter()
+    .map(|path| {
+        let bytes = std::fs::read(root.join(path)).unwrap();
+        std::fs::write(
+            backup.join(std::path::Path::new(path).file_name().unwrap()),
+            &bytes,
+        )
+        .unwrap();
+        let hash = openbox_storage::fingerprint_bytes(&bytes);
+        serde_json::json!({"path":path,"before":hash,"after":hash})
+    })
+    .collect();
+    std::fs::write(
+        root.join(".openbox/pending.json"),
+        serde_json::to_vec(
+            &serde_json::json!({"version":1,"backup":"save-desktop-test","files":files}),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let before = openbox_test_support::files(&root);
+    let app =
+        App::load(folder.path().join("library.json"), Some(root.clone())).unwrap_or_else(|error| {
+            panic!("Interrupted USB saves must allow the desktop to start: {error}")
+        });
+    assert!(app.workspace.device.is_none());
+    assert!(app.status.contains("Recover USB"), "{}", app.status);
+    let mut renderer = super::rendering::new_renderer();
+    let mut ui = UserInterface::build(
+        app.view(),
+        iced::Size::new(1440.0, 900.0),
+        Cache::new(),
+        &mut renderer,
+    );
+    let mut recovery = RecoveryButton(false);
+    ui.operate(&renderer, &mut recovery);
+    assert!(recovery.0, "The device panel must offer a recovery action");
+    assert_eq!(openbox_test_support::files(&root), before);
+}
