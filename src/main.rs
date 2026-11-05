@@ -73,6 +73,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn default_library_path_is_absolute_and_explicit_paths_still_take_precedence() {
+        let default = Args::try_parse_from(["openbox"])
+            .unwrap()
+            .library_path()
+            .unwrap();
+        assert!(
+            default.is_absolute(),
+            "Desktop launch must not store music data relative to its working directory: {default:?}"
+        );
+        let explicit = Args::try_parse_from(["openbox", "--library", "my-library.json"]).unwrap();
+        assert_eq!(
+            explicit.library_path().unwrap(),
+            PathBuf::from("my-library.json")
+        );
+    }
+
+    #[test]
     fn startup_flags_accept_paths_and_reject_missing_or_unknown_arguments() {
         let args = Args::try_parse_from([
             "openbox",
@@ -97,13 +114,6 @@ mod tests {
                 .library_path()
                 .unwrap(),
             PathBuf::from(".prototype/demo-library.json")
-        );
-        assert_eq!(
-            Args::try_parse_from(["openbox"])
-                .unwrap()
-                .library_path()
-                .unwrap(),
-            PathBuf::from(".prototype/library.json")
         );
     }
 }
