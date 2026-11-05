@@ -293,7 +293,7 @@ impl App {
             clock,
             canvas(wave(true)).width(Length::Fill).height(28),
             zoom,
-            canvas(wave(false)).width(Length::Fill).height(162),
+            canvas(wave(false)).width(Length::Fill).height(158),
             transport,
             container(pitch).id(format!("pitch-controls-{id:?}"))
         ]
