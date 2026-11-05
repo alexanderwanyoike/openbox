@@ -9,8 +9,12 @@ pub(super) fn commit(
     expected: Option<&[u8]>,
     library: &Library,
     sources: &[SourceLink],
+    expected_modern: Option<&super::onelibrary::Snapshot>,
 ) -> Result<(), String> {
-    let modern = super::onelibrary::create(root, pdb)?;
+    if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
+        return Err("USB OneLibrary changed. Refresh it before saving.".into());
+    }
+    let modern = super::onelibrary::create(pdb, expected_modern)?;
     let mut library = library.clone();
     for track in library.tracks().to_vec() {
         let relative = track
@@ -66,6 +70,9 @@ pub(super) fn commit(
     if current.as_deref() != expected {
         return Err("USB library changed. Refresh it before saving.".into());
     }
+    if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
+        return Err("USB OneLibrary changed. Refresh it before saving.".into());
+    }
     staged_database
         .persist(&database_path)
         .map_err(|e| e.to_string())?;
@@ -79,7 +86,14 @@ pub(super) fn commit(
                 .map_err(|e| e.to_string())
         });
     if let Err(error) = publish {
-        let _ = std::fs::remove_file(&modern_path);
+        match expected_modern {
+            Some(previous) => {
+                storage::write_atomic(&modern_path, &previous.bytes)?;
+            }
+            None => {
+                let _ = std::fs::remove_file(&modern_path);
+            }
+        }
         // Roll back a normal cache-write failure; a crash is detected by the cache fingerprint.
         let rollback = match previous {
             Some(bytes) => storage::write_atomic(&database_path, &bytes),

@@ -37,6 +37,7 @@ pub struct DeviceLibrary {
     pub library: Library,
     database: Database,
     sources: Vec<SourceLink>,
+    modern: Option<onelibrary::Snapshot>,
 }
 
 impl DeviceLibrary {
@@ -137,11 +138,13 @@ pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
         .filter(|cache| cache.database_fingerprint == storage::fingerprint_bytes(&database.bytes))
         .map(|cache| cache.sources)
         .unwrap_or_default();
+    let modern = onelibrary::Snapshot::read(&root)?;
     Ok(DeviceLibrary {
         root,
         library,
         database,
         sources,
+        modern,
     })
 }
 
@@ -154,6 +157,7 @@ pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {
         Some(&device.database.bytes),
         &device.library,
         &device.sources,
+        device.modern.as_ref(),
     )
 }
 
@@ -234,9 +238,12 @@ mod tests {
 
         let db = onelibrary::connect(&path).unwrap();
         assert_eq!(
-            db.query_row("SELECT name FROM playlist WHERE playlist_id=?", [id as i64], |r| r
-                .get::<_, String>(0))
-                .unwrap(),
+            db.query_row(
+                "SELECT name FROM playlist WHERE playlist_id=?",
+                [id as i64],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
             "Warm up"
         );
         assert_eq!(
