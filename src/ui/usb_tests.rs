@@ -96,3 +96,42 @@ fn startup_offers_recovery_for_interrupted_saves_without_modifying_the_device() 
     assert!(recovery.0, "The device panel must offer a recovery action");
     assert_eq!(openbox_test_support::files(&root), before);
 }
+
+#[test]
+fn usb_write_completion_reconciles_recovery_availability_and_device_views() {
+    let completions: [fn(Result<DeviceLibrary, String>) -> Message; 2] =
+        [Message::Exported, Message::UsbUpdated];
+    for complete in completions {
+        let (folder, root) = device_fixture();
+        let mut app = App::load(folder.path().join("library.json"), Some(root.clone())).unwrap();
+        let healthy = app.workspace.device.clone().unwrap();
+        std::fs::write(root.join(".openbox/pending.json"), b"{}").unwrap();
+        let _ = app.update(complete(Err("Interrupted USB write".into())));
+        assert!(
+            app.usb_recovery,
+            "A failed write must expose its pending recovery"
+        );
+        assert!(
+            app.workspace.device.is_none(),
+            "An interrupted device view must not remain editable"
+        );
+        std::fs::remove_file(root.join(".openbox/pending.json")).unwrap();
+        let _ = app.update(complete(Ok(healthy)));
+        assert!(
+            !app.usb_recovery,
+            "A successful export must remove the recovery action"
+        );
+        assert!(app.workspace.device.is_some());
+    }
+    let (folder, root) = device_fixture();
+    let mut app = App::load(folder.path().join("library.json"), Some(root.clone())).unwrap();
+    app.target = Target::Usb;
+    let id = app.workspace.device.as_ref().unwrap().library.playlists()[0].id;
+    std::fs::write(root.join(".openbox/pending.json"), b"{}").unwrap();
+    assert!(!app.edit(Edit::Rename(id, "Rename".into()), "Renamed"));
+    assert!(
+        app.usb_recovery,
+        "Synchronous playlist edits must also expose pending recovery"
+    );
+    assert!(app.workspace.device.is_none());
+}
