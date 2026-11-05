@@ -27,6 +27,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.96.1
       - uses: Swatinem/rust-cache@v2
       - uses: ./.github/actions/native-setup
+        with:
+          install-packages: 'false'
       - name: Require a stable version from main for publication
         if: github.event_name == 'push'
         shell: bash

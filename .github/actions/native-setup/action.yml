@@ -1,18 +1,22 @@
 name: Native build dependencies
 description: Install decoders and the pinned static FFTW source
+inputs:
+  install-packages:
+    description: Install platform build packages as well as fetching FFTW source
+    default: 'true'
 runs:
   using: composite
   steps:
     - name: Linux dependencies
       shell: bash
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && inputs.install-packages == 'true'
       run: sudo apt-get update && sudo apt-get install -y libasound2-dev libfftw3-dev libxkbcommon-dev libwayland-dev pkg-config ffmpeg
     - name: macOS dependencies
       shell: bash
-      if: runner.os == 'macOS'
+      if: runner.os == 'macOS' && inputs.install-packages == 'true'
       run: brew install ffmpeg
     - name: Windows decoder
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && inputs.install-packages == 'true'
       shell: pwsh
       run: choco install ffmpeg --no-progress -y
     - name: Prepare pinned FFTW source
