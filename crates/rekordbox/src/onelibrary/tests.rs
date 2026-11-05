@@ -272,9 +272,9 @@ fn interrupted_save_recovery_refuses_committed_wal_updates_without_modifying_fil
     db.execute_batch("PRAGMA wal_autocheckpoint=0; UPDATE content SET djPlayCount=35")
         .unwrap();
     let before = openbox_test_support::files(usb.path());
-    let error = recover(usb.path())
-        .err()
-        .expect("Recovery must preserve edits committed after an interrupted save");
+    let Err(error) = recover(usb.path()) else {
+        panic!("Recovery must preserve edits committed after an interrupted save");
+    };
     assert!(error.contains("Close rekordbox"), "{error}");
     assert_eq!(openbox_test_support::files(usb.path()), before);
     assert_eq!(
