@@ -22,7 +22,7 @@ Get the archive for your platform from [Releases](https://github.com/alexanderwa
 | macOS, Apple silicon | `openbox-aarch64-apple-darwin.tar.gz` |
 | macOS, Intel | `openbox-x86_64-apple-darwin.tar.gz` |
 
-Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
+Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. Windows also requires the [Microsoft Visual C++ x64 runtime](https://aka.ms/vc14/vc_redist.x64.exe). FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
 
 Extract the archive and run Openbox. On macOS, move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
 
