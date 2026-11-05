@@ -80,6 +80,18 @@ jobs:
       - uses: ./.github/actions/native-setup
       - name: Build release executable
         run: cargo build --release --locked --target ${{ matrix.target }} --no-default-features --features desktop
+      - name: Verify Windows desktop executable metadata
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python -m pip install pefile==2024.8.26
+          python - <<'PYTHON'
+          import pefile
+          executable = pefile.PE('target/x86_64-pc-windows-msvc/release/openbox.exe')
+          assert executable.OPTIONAL_HEADER.Subsystem == 2, 'Openbox must launch as a GUI application without a console'
+          resources = executable.DIRECTORY_ENTRY_RESOURCE.entries
+          assert any(entry.id == 14 for entry in resources), 'Openbox must embed its own application icon'
+          PYTHON
       - name: Check native startup
         shell: bash
         run: |
