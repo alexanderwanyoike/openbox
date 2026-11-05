@@ -25,7 +25,8 @@ fn a_github_check_discovers_the_published_version_without_downloading() {
             String::from_utf8_lossy(&request[..n])
                 .starts_with("GET /repos/alexanderwanyoike/openbox/releases/latest ")
         );
-        let body = r#"{"tag_name":"v0.2.0","created_at":"2026-11-04T00:00:00Z","name":"0.2.0","assets":[{"name":"openbox-x86_64-unknown-linux-gnu.tar.gz","url":"https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/openbox-x86_64-unknown-linux-gnu.tar.gz","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}"#;
+        let asset = openbox_updater::Package::current().unwrap().asset;
+        let body = serde_json::to_string(&serde_json::json!({"tag_name":"v0.2.0", "created_at":"2026-11-04T00:00:00Z", "name":"0.2.0", "assets":[{"name":asset,"url":format!("https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/{asset}"),"digest":format!("sha256:{}", "a".repeat(64))}]})).unwrap();
         write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}", body.len(), body).unwrap();
     });
     let client = openbox_updater::Client::with_api_base(&base);
@@ -38,9 +39,10 @@ fn a_github_check_discovers_the_published_version_without_downloading() {
 fn verified_download_replaces_a_disposable_install_and_restart_preserves_arguments() {
     use std::{fs, process::Command};
     let temp = tempfile::tempdir().unwrap();
-    let archive = temp.path().join("release.tar.gz");
+    let package = openbox_updater::Package::current().unwrap();
+    let archive = temp.path().join(package.asset);
     let staged = temp.path().join("staged");
-    fs::create_dir(&staged).unwrap();
+    fs::create_dir_all(staged.join(package.binary).parent().unwrap()).unwrap();
     let marker = temp.path().join("restarted");
     let executable = format!("openbox{}", std::env::consts::EXE_SUFFIX);
     let source = temp.path().join("fixture.rs");
@@ -51,30 +53,62 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
         Command::new("rustc")
             .arg(&source)
             .arg("-o")
-            .arg(staged.join(&executable))
+            .arg(staged.join(package.binary))
             .status()
             .unwrap()
             .success()
     );
+    if cfg!(target_os = "macos") {
+        let resources = staged.join("Openbox.app/Contents/Resources");
+        fs::create_dir_all(&resources).unwrap();
+        fs::write(resources.join("updated.txt"), "new resource").unwrap();
+    }
+    #[cfg(not(windows))]
     assert!(
         Command::new("tar")
             .args(["-czf"])
             .arg(&archive)
             .arg("-C")
             .arg(&staged)
-            .arg(&executable)
+            .arg(if cfg!(target_os = "macos") {
+                "Openbox.app"
+            } else {
+                &executable
+            })
             .status()
             .unwrap()
             .success()
     );
+    #[cfg(windows)]
+    {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(fs::File::create(&archive).unwrap());
+        zip.start_file(&executable, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(&fs::read(staged.join(package.binary)).unwrap())
+            .unwrap();
+        zip.finish().unwrap();
+    }
     let bytes = fs::read(&archive).unwrap();
     use sha2::{Digest, Sha256};
     let digest = format!("{:x}", Sha256::digest(&bytes));
     let (base, server) = release_server(bytes, digest.clone());
-    let installed = temp
-        .path()
-        .join(format!("installed-openbox{}", std::env::consts::EXE_SUFFIX));
+    let installed = if cfg!(target_os = "macos") {
+        temp.path()
+            .join("installed/Openbox.app/Contents/MacOS/openbox")
+    } else {
+        temp.path()
+            .join(format!("installed-openbox{}", std::env::consts::EXE_SUFFIX))
+    };
+    fs::create_dir_all(installed.parent().unwrap()).unwrap();
     fs::write(&installed, "old application").unwrap();
+    if cfg!(target_os = "macos") {
+        fs::write(
+            installed.ancestors().nth(3).unwrap().join("obsolete.txt"),
+            "old resource",
+        )
+        .unwrap();
+    }
     let client = openbox_updater::Client::with_api_base(&base);
     let release = client.check("0.1.0").unwrap().unwrap();
     client
@@ -88,6 +122,14 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
             .stdout
             .starts_with(b"openbox 0.2.0")
     );
+    if cfg!(target_os = "macos") {
+        let bundle = installed.ancestors().nth(3).unwrap();
+        assert!(!bundle.join("obsolete.txt").exists());
+        assert_eq!(
+            fs::read_to_string(bundle.join("Contents/Resources/updated.txt")).unwrap(),
+            "new resource"
+        );
+    }
     openbox_updater::restart(&installed, ["--library", "a library.json"]).unwrap();
     for _ in 0..100 {
         if marker.exists() {
@@ -119,7 +161,7 @@ fn release_server(bytes: Vec<u8>, digest: String) -> (String, std::thread::JoinH
             let body = if request.starts_with("GET /asset ") {
                 bytes.clone()
             } else {
-                serde_json::to_vec(&serde_json::json!({ "tag_name":"v0.2.0", "created_at":"2026-11-04T00:00:00Z", "assets":[{"name":"openbox-x86_64-unknown-linux-gnu.tar.gz","url":format!("{root}/asset"),"digest":format!("sha256:{digest}")}] })).unwrap()
+                serde_json::to_vec(&serde_json::json!({ "tag_name":"v0.2.0", "created_at":"2026-11-04T00:00:00Z", "assets":[{"name":openbox_updater::Package::current().unwrap().asset,"url":format!("{root}/asset"),"digest":format!("sha256:{digest}")}] })).unwrap()
             };
             write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).unwrap();
             stream.write_all(&body).unwrap();
@@ -131,7 +173,12 @@ fn release_server(bytes: Vec<u8>, digest: String) -> (String, std::thread::JoinH
 #[test]
 fn corrupt_downloads_leave_the_installed_application_unchanged() {
     let temp = tempfile::tempdir().unwrap();
-    let installed = temp.path().join("installed-openbox");
+    let installed = if cfg!(target_os = "macos") {
+        temp.path().join("Openbox.app/Contents/MacOS/openbox")
+    } else {
+        temp.path().join("installed-openbox")
+    };
+    std::fs::create_dir_all(installed.parent().unwrap()).unwrap();
     std::fs::write(&installed, b"working application").unwrap();
     let (base, server) = release_server(b"damaged download".to_vec(), "a".repeat(64));
     let client = openbox_updater::Client::with_api_base(&base);
