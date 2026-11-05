@@ -199,3 +199,26 @@ fn delete_confirmation_preserves_the_browsers_outer_corners() {
         );
     }
 }
+
+#[test]
+fn playlist_folders_use_the_same_workspace_surface_as_track_browsers() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+    let folder = app.workspace.library.create_folder("Sets", None).unwrap();
+    let _ = app.update(Message::OpenFolder(Target::Library, Some(folder)));
+    for mode in appearance::Mode::ALL {
+        app.preferences.mode = mode;
+        let pixels = super::test_render::render(&app, mouse::Cursor::Unavailable);
+        let pixel = pixels.pixel(1200, 110).unwrap();
+        let panel = app.preferences.palette().panel;
+        assert_eq!(
+            (pixel.red(), pixel.green(), pixel.blue()),
+            (
+                (panel.r * 255.0).round() as u8,
+                (panel.g * 255.0).round() as u8,
+                (panel.b * 255.0).round() as u8
+            ),
+            "{mode:?}: folder content must remain inside the shared workspace frame"
+        );
+    }
+}
