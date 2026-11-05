@@ -185,6 +185,21 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
+    fn export_publishes_an_encrypted_onelibrary_alongside_the_legacy_database() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+
+        let modern = std::fs::read(usb.path().join("PIONEER/rekordbox/exportLibrary.db"))
+            .expect("An export must support OneLibrary players as well as legacy players");
+        assert!(!modern.starts_with(b"SQLite format 3"));
+        assert!(modern.len() >= 4096);
+        assert_eq!(modern.len() % 4096, 0);
+        assert_eq!(open(usb.path()).unwrap().library.playlists().len(), 1);
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
