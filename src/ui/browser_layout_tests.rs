@@ -158,3 +158,22 @@ fn selected_playlist_tracks_can_be_removed_at_the_minimum_window_width() {
         "The remove action must be visible and clickable inside a 1000 px window"
     );
 }
+
+#[test]
+fn delete_confirmation_preserves_the_browsers_outer_corners() {
+    let folder = tempfile::tempdir().unwrap();
+    let mut app = App::load(folder.path().join("library.json"), None).unwrap();
+    let playlist = app.workspace.library.create_playlist("Local set").unwrap();
+    let _ = app.update(Message::OpenPlaylist(Target::Library, playlist));
+    let _ = app.update(Message::DeletePlaylist);
+    assert!(app.deletion.is_some());
+    for mode in appearance::Mode::ALL {
+        app.preferences.mode = mode;
+        let pixels = super::test_render::render(&app, mouse::Cursor::Unavailable);
+        assert_eq!(
+            pixels.pixel(1431, 861),
+            pixels.pixel(1439, 861),
+            "{mode:?}: confirmation must not square off the browser frame"
+        );
+    }
+}
