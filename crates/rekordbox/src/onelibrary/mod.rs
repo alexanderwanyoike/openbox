@@ -73,3 +73,6 @@ pub(super) fn connect(path: &Path) -> Result<Connection, String> {
 fn error(error: rusqlite::Error) -> String {
     format!("Cannot process OneLibrary: {error}")
 }
+
+#[cfg(test)]
+mod tests;
