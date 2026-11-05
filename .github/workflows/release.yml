@@ -11,6 +11,9 @@ on:
       - 'resources/icons/openbox.icns'
   push:
     tags: ['v*']
+concurrency:
+  group: native-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 env:

@@ -10,7 +10,7 @@ runs:
     - name: Linux dependencies
       shell: bash
       if: runner.os == 'Linux' && inputs.install-packages == 'true'
-      run: sudo apt-get update && sudo apt-get install -y libasound2-dev libfftw3-dev libxkbcommon-dev libwayland-dev pkg-config ffmpeg
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev libxkbcommon-dev libwayland-dev pkg-config ffmpeg
     - name: macOS dependencies
       shell: bash
       if: runner.os == 'macOS' && inputs.install-packages == 'true'
