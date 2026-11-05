@@ -20,6 +20,8 @@ struct DeviceCache {
     #[serde(default)]
     database_fingerprint: String,
     #[serde(default)]
+    onelibrary_fingerprint: String,
+    #[serde(default)]
     sources: Vec<SourceLink>,
 }
 
@@ -38,6 +40,7 @@ pub struct DeviceLibrary {
     database: Database,
     sources: Vec<SourceLink>,
     modern: Option<onelibrary::Snapshot>,
+    has_legacy: bool,
 }
 
 impl DeviceLibrary {
@@ -127,24 +130,37 @@ pub fn put_tracks_with_progress(
 
 pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
     let root = root.canonicalize().map_err(|e| e.to_string())?;
-    let database = Database::read(
-        std::fs::read(safe_path(&root, DATABASE)?)
-            .map_err(|e| format!("Cannot read Rekordbox USB library: {e}"))?,
-    )?;
+    let modern = onelibrary::Snapshot::read(&root)?;
+    let legacy = onelibrary::snapshot::read_optional(&safe_path(&root, DATABASE)?)?;
+    let has_legacy = legacy.is_some();
+    let database = match legacy {
+        Some(bytes) => Database::read(bytes)?,
+        None => onelibrary::legacy(modern.as_ref().ok_or("This USB has no Rekordbox library")?)?,
+    };
     let library = database.library(&root)?;
     let sources = std::fs::read(safe_path(&root, MANIFEST)?)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<DeviceCache>(&bytes).ok())
-        .filter(|cache| cache.database_fingerprint == storage::fingerprint_bytes(&database.bytes))
+        .filter(|cache| {
+            if has_legacy {
+                cache.database_fingerprint == storage::fingerprint_bytes(&database.bytes)
+            } else {
+                modern.as_ref().is_some_and(|snapshot| {
+                    snapshot.wal.as_ref().is_none_or(Vec::is_empty)
+                        && cache.onelibrary_fingerprint
+                            == storage::fingerprint_bytes(&snapshot.bytes)
+                })
+            }
+        })
         .map(|cache| cache.sources)
         .unwrap_or_default();
-    let modern = onelibrary::Snapshot::read(&root)?;
     Ok(DeviceLibrary {
         root,
         library,
         database,
         sources,
         modern,
+        has_legacy,
     })
 }
 
@@ -154,7 +170,10 @@ pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {
     write::commit(
         &device.root,
         &pdb,
-        Some(&device.database.bytes),
+        device
+            .has_legacy
+            .then_some(device.database.bytes.as_slice()),
+        Some(device.database.bytes.as_slice()),
         &device.library,
         &device.sources,
         device.modern.as_ref(),

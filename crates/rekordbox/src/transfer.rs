@@ -43,7 +43,9 @@ pub(super) fn run(
     });
     let root = root.canonicalize().map_err(|e| e.to_string())?;
     let _lock = DeviceWrite::acquire(&root)?;
-    let previous = if safe_path(&root, DATABASE)?.exists() {
+    let previous = if safe_path(&root, DATABASE)?.exists()
+        || safe_path(&root, super::onelibrary::DATABASE)?.exists()
+    {
         Some(open(&root)?)
     } else {
         if safe_path(&root, "PIONEER")?.exists() {
@@ -51,8 +53,12 @@ pub(super) fn run(
         }
         None
     };
-    let previous_bytes = previous.as_ref().map(|d| d.database.bytes.as_slice());
-    if expected.is_some() && expected != previous_bytes {
+    let previous_model = previous.as_ref().map(|d| d.database.bytes.as_slice());
+    let previous_bytes = previous
+        .as_ref()
+        .filter(|d| d.has_legacy)
+        .map(|d| d.database.bytes.as_slice());
+    if expected.is_some() && expected != previous_model {
         return Err("USB library changed. Refresh it before saving.".into());
     }
     let base = match &previous {
@@ -107,6 +113,7 @@ pub(super) fn run(
         &root,
         &output,
         previous_bytes,
+        previous_model,
         &updated,
         &staged.sources,
         previous.as_ref().and_then(|d| d.modern.as_ref()),

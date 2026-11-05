@@ -1,7 +1,9 @@
 mod key;
 mod merge;
+mod read;
 mod records;
-mod snapshot;
+pub(super) use read::legacy;
+pub(super) mod snapshot;
 pub(crate) use snapshot::Snapshot;
 
 use super::database::Database;

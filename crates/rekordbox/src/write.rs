@@ -7,6 +7,7 @@ pub(super) fn commit(
     root: &Path,
     pdb: &[u8],
     expected: Option<&[u8]>,
+    baseline: Option<&[u8]>,
     library: &Library,
     sources: &[SourceLink],
     expected_modern: Option<&super::onelibrary::Snapshot>,
@@ -19,7 +20,7 @@ pub(super) fn commit(
     {
         return Err("Close rekordbox and safely eject the USB before editing it in Openbox. Its OneLibrary write-ahead log is still active.".into());
     }
-    let modern = super::onelibrary::create(pdb, expected, expected_modern)?;
+    let modern = super::onelibrary::create(pdb, baseline, expected_modern)?;
     let mut library = library.clone();
     for track in library.tracks().to_vec() {
         let relative = track
@@ -31,6 +32,7 @@ pub(super) fn commit(
     let cache = DeviceCache {
         library,
         database_fingerprint: storage::fingerprint_bytes(pdb),
+        onelibrary_fingerprint: storage::fingerprint_bytes(&modern),
         sources: sources.to_vec(),
     };
     let bytes = serde_json::to_vec_pretty(&cache).map_err(|e| e.to_string())?;
