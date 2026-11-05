@@ -108,6 +108,28 @@ fn shared_playlist_toolbar_accepts_name_edits() {
             .any(|m| matches!(m,Message::RenameName(name) if name.contains('x'))),
         "The playlist name field must remain editable after moving into the shared toolbar"
     );
+    messages.clear();
+    let _ = ui.update(
+        &[iced::Event::Keyboard(keyboard::Event::KeyPressed {
+            key: keyboard::Key::Named(keyboard::key::Named::Enter),
+            modified_key: keyboard::Key::Named(keyboard::key::Named::Enter),
+            physical_key: keyboard::key::Physical::Code(keyboard::key::Code::Enter),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::default(),
+            text: None,
+            repeat: false,
+        })],
+        mouse::Cursor::Unavailable,
+        &mut renderer,
+        &mut iced_graphics::core::clipboard::Null,
+        &mut messages,
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m, Message::RenamePlaylist)),
+        "Enter must submit a playlist rename"
+    );
 }
 
 #[test]
