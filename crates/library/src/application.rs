@@ -529,7 +529,20 @@ mod tests {
         details.artwork = Some(cover);
         workspace.library.set_details(id, details);
         workspace.device = Some(usb::export(&workspace.library, &[playlist], usb.path()).unwrap());
-        let imported = workspace.import_usb_playlist(playlist).unwrap();
+        let artwork = workspace.device.as_ref().unwrap().library.tracks()[0]
+            .details
+            .artwork
+            .as_ref()
+            .unwrap()
+            .clone();
+        let permissions = std::fs::metadata(&artwork).unwrap().permissions();
+        let mut read_only = permissions.clone();
+        read_only.set_readonly(true);
+        std::fs::set_permissions(&artwork, read_only).unwrap();
+        let result = workspace.import_usb_playlist(playlist);
+        std::fs::set_permissions(&artwork, permissions).unwrap();
+        let imported =
+            result.expect("Readable artwork must import even when the USB image is read-only");
         let local = Workspace::load(dir.path().join("library.json")).unwrap();
         let track = local
             .library
