@@ -62,6 +62,12 @@ jobs:
         run: cargo build --locked --target ${{ matrix.target }} --no-default-features --features desktop
       - name: Test native code
         run: cargo test --locked --workspace --all-targets --target ${{ matrix.target }} --no-default-features --features desktop
+      - name: Exercise analysis with Finder's restricted PATH
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cargo_bin="$(command -v cargo)"
+          PATH=/usr/bin:/bin "$cargo_bin" test --locked -p openbox-analysis --target ${{ matrix.target }} detects_tempo_key_and_beats_from_audio_without_tags
       - name: Exercise executable startup
         shell: bash
         run: |
