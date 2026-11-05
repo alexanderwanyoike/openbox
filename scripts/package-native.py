@@ -60,6 +60,30 @@ def package(
             )
             shutil.copyfile(binary, executable)
             executable.chmod(0o755)
+            if target == "x86_64-unknown-linux-gnu":
+                identity = "io.github.alexanderwanyoike.openbox"
+                desktop = staging / "share/applications"
+                desktop.mkdir(parents=True)
+                shutil.copyfile(
+                    ROOT / f"resources/linux/{identity}.desktop",
+                    desktop / f"{identity}.desktop",
+                )
+                for size, extension in [
+                    ("scalable", "svg"),
+                    ("256x256", "png"),
+                    ("512x512", "png"),
+                ]:
+                    icons = staging / f"share/icons/hicolor/{size}/apps"
+                    icons.mkdir(parents=True)
+                    source = (
+                        "openbox.svg"
+                        if extension == "svg"
+                        else f"openbox-{size.split('x')[0]}.png"
+                    )
+                    shutil.copyfile(
+                        ROOT / "resources/icons" / source,
+                        icons / f"{identity}.{extension}",
+                    )
             legal = contents / "Resources" if is_mac else staging
             shutil.copytree(licenses, legal / "licenses")
             for name in ["LICENSE", "THIRD-PARTY-NOTICES.md", "README.md"]:
