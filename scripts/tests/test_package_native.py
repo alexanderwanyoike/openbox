@@ -51,6 +51,16 @@ class PackageNativeTest(unittest.TestCase):
         unpacked = self.root / "unpacked"
         self.assertTrue((unpacked / "licenses/COPYING.GPL-3").is_file())
         self.assertTrue((unpacked / "THIRD-PARTY-NOTICES.md").is_file())
+        desktop = (
+            unpacked / "share/applications/io.github.alexanderwanyoike.openbox.desktop"
+        )
+        self.assertIn("Icon=io.github.alexanderwanyoike.openbox", desktop.read_text())
+        self.assertTrue(
+            (
+                unpacked
+                / "share/icons/hicolor/scalable/apps/io.github.alexanderwanyoike.openbox.svg"
+            ).is_file()
+        )
         self.assertEqual(
             subprocess.check_output(
                 [str(unpacked / "openbox"), "--version"], text=True
