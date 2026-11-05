@@ -1,5 +1,45 @@
 import { test, expect } from "@playwright/test";
 
+test("published releases provide separate Windows, Linux and both Mac downloads", async ({
+  page,
+}) => {
+  const assets = [
+    ["Linux", "openbox-x86_64-unknown-linux-gnu.tar.gz"],
+    ["Windows", "openbox-x86_64-pc-windows-msvc.zip"],
+    ["Apple silicon", "openbox-aarch64-apple-darwin.tar.gz"],
+    ["Intel Mac", "openbox-x86_64-apple-darwin.tar.gz"],
+  ];
+  await page.route("https://api.github.com/**", (route) =>
+    route.fulfill({
+      json: [
+        {
+          tag_name: "v0.2.0",
+          draft: false,
+          prerelease: false,
+          assets: assets.map(([, name]) => ({ name })),
+        },
+      ],
+    }),
+  );
+  await page.goto("/");
+  for (const [platform, asset] of assets) {
+    await expect(
+      page.getByRole("link", {
+        name: `Download ${platform} v0.2.0`,
+        exact: true,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/${asset}`,
+    );
+  }
+  await expect(
+    page
+      .getByRole("region", { name: "Features" })
+      .getByText(/Device Library and OneLibrary/),
+  ).toBeVisible();
+});
+
 test("the project site shows the actual workspace and valid release navigation", async ({
   page,
 }) => {
@@ -25,7 +65,7 @@ test("the project site shows the actual workspace and valid release navigation",
     page.getByAltText("Openbox library, decks and mixer"),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "View releases" }),
+    page.getByRole("link", { name: "Linux releases", exact: true }),
   ).toHaveAttribute(
     "href",
     "https://github.com/alexanderwanyoike/openbox/releases",
@@ -56,7 +96,7 @@ test("published Linux releases link to their versioned binary", async ({
   );
   await page.goto("/");
   await expect(
-    page.getByRole("link", { name: "Download v0.2.0" }),
+    page.getByRole("link", { name: "Download Linux v0.2.0" }),
   ).toHaveAttribute(
     "href",
     /\/v0.2.0\/openbox-x86_64-unknown-linux-gnu.tar.gz$/,
@@ -69,7 +109,9 @@ test("mobile layout fits without horizontal overflow and retains offline release
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route("https://api.github.com/**", (route) => route.abort());
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "View releases" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Linux releases", exact: true }),
+  ).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
