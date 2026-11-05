@@ -33,6 +33,8 @@ struct SourceLink {
     source: String,
     audio: String,
     track_id: u64,
+    #[serde(default)]
+    analysis_files: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -911,6 +913,86 @@ mod tests {
             &bytes[4096..]
         );
         assert_eq!(rows(usb.path(), PageType::Tracks).len(), 2);
+    }
+
+    #[test]
+    fn a_cached_older_export_without_modern_waveforms_is_prepared_again() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+        let prepared = openbox_test_support::files(usb.path());
+        for path in prepared
+            .keys()
+            .filter(|p| p.extension().is_some_and(|e| e == "2EX"))
+        {
+            std::fs::remove_file(usb.path().join(path)).unwrap();
+        }
+        let cache = usb.path().join(MANIFEST);
+        let mut old: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&cache).unwrap()).unwrap();
+        for source in old["sources"].as_array_mut().unwrap() {
+            source.as_object_mut().unwrap().remove("analysis_files");
+        }
+        std::fs::write(cache, serde_json::to_vec(&old).unwrap()).unwrap();
+        export(&library, &[playlist], usb.path()).unwrap();
+        let updated = openbox_test_support::files(usb.path());
+        assert!(
+            updated
+                .keys()
+                .any(|p| p.extension().is_some_and(|e| e == "2EX")),
+            "An old cache must not bypass modern waveform preparation"
+        );
+        for (path, bytes) in prepared {
+            if path.starts_with("Contents")
+                || matches!(
+                    path.extension().and_then(|e| e.to_str()),
+                    Some("DAT" | "EXT")
+                )
+            {
+                assert_eq!(updated.get(&path), Some(&bytes));
+            }
+        }
+    }
+
+    #[test]
+    fn new_exports_include_modern_three_band_waveforms_without_changing_existing_assets() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        openbox_test_support::rekordbox_usb(usb.path());
+        let original = openbox_test_support::files(usb.path());
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+        let files = openbox_test_support::files(usb.path());
+        let dat = files
+            .keys()
+            .find(|p| {
+                p.extension().is_some_and(|e| e == "DAT")
+                    && !p.to_string_lossy().contains("Original")
+            })
+            .unwrap();
+        let modern = usb.path().join(dat.with_extension("2EX"));
+        assert!(
+            modern.is_file(),
+            "Modern players need the generated .2EX analysis file"
+        );
+        let file = ANLZ::read_be(&mut std::fs::File::open(&modern).unwrap()).unwrap();
+        for tag in [*b"PWV7", *b"PWV6", *b"PWVC"] {
+            assert!(
+                file.sections.iter().any(|section| {
+                    section.header.kind == rekordcrate::anlz::ContentKind::Unknown(tag)
+                }),
+                "Missing modern analysis section {tag:?}"
+            );
+        }
+        for (path, bytes) in original {
+            if path.starts_with("Contents") || path.starts_with("PIONEER/USBANLZ") {
+                assert_eq!(std::fs::read(usb.path().join(path)).unwrap(), bytes);
+            }
+        }
+        let prepared = std::fs::read(&modern).unwrap();
+        export(&library, &[playlist], usb.path()).unwrap();
+        assert_eq!(std::fs::read(modern).unwrap(), prepared);
     }
 
     #[test]
