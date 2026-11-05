@@ -1,3 +1,6 @@
+mod installation;
+pub use installation::installation_path;
+
 mod package;
 pub use package::Package;
 
@@ -28,6 +31,10 @@ pub enum UpdateError {
     InvalidRelease,
     #[error("Updates on macOS require an installed Openbox.app bundle")]
     InvalidInstallPath,
+    #[error(
+        "Cannot locate the writable Openbox AppImage. Move it to a writable folder and reopen it."
+    )]
+    InvalidAppImage,
     #[error("The requested release is not newer than the installed version")]
     NotNewer,
     #[error("Cannot restart Openbox: {0}")]
@@ -148,7 +155,15 @@ impl Client {
                 } else {
                     path.to_path_buf()
                 };
-                let output = std::process::Command::new(executable)
+                #[cfg(target_os = "linux")]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
+                        .map_err(|error| {
+                        self_update::Error::verification_rejected(error.to_string())
+                    })?;
+                }
+                let output = installation::command(executable)
                     .arg("--version")
                     .output()
                     .map_err(|error| {
@@ -179,7 +194,7 @@ pub fn restart(
     executable: &Path,
     args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
 ) -> Result<(), UpdateError> {
-    std::process::Command::new(executable)
+    installation::command(executable)
         .args(args)
         .spawn()
         .map_err(|error| UpdateError::Restart(error.to_string()))?;

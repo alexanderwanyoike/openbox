@@ -12,7 +12,7 @@ impl Package {
         let (target, asset, binary) = match target {
             "x86_64-unknown-linux-gnu" => (
                 "x86_64-unknown-linux-gnu",
-                "openbox-x86_64-unknown-linux-gnu.tar.gz",
+                "openbox-x86_64-unknown-linux-gnu.AppImage",
                 "openbox",
             ),
             "x86_64-pc-windows-msvc" => (

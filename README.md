@@ -13,26 +13,27 @@ A native Rust and Iced application for preparing DJ collections on Linux, Window
 
 ## Installation
 
-Get the archive for your platform from [Releases](https://github.com/alexanderwanyoike/openbox/releases) or the [project site](https://alexanderwanyoike.github.io/openbox/).
+Get the download for your platform from [Releases](https://github.com/alexanderwanyoike/openbox/releases) or the [project site](https://alexanderwanyoike.github.io/openbox/).
 
 | Platform | Download |
 |---|---|
-| Linux, x86_64 | `openbox-x86_64-unknown-linux-gnu.tar.gz`, built on Ubuntu 24.04 |
+| Linux, x86_64 | `openbox-x86_64-unknown-linux-gnu.AppImage`, built on Ubuntu 24.04 |
 | Windows, x86_64 | `openbox-x86_64-pc-windows-msvc.zip` |
 | macOS, Apple silicon | `openbox-aarch64-apple-darwin.tar.gz` |
 | macOS, Intel | `openbox-x86_64-apple-darwin.tar.gz` |
 
 Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. Windows also requires the [Microsoft Visual C++ x64 runtime](https://aka.ms/vc14/vc_redist.x64.exe). FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
 
-Extract the archive and run Openbox. On macOS, move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
-
-The Linux archive includes desktop launchers and icons. To install them for your account, run these commands from the extracted archive and ensure `~/.local/bin` is on your desktop session's PATH:
+On Linux, make the AppImage executable and open it:
 
 ```sh
-install -Dm755 openbox "$HOME/.local/bin/openbox"
-mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}"
-cp -R share/. "${XDG_DATA_HOME:-$HOME/.local/share}/"
+chmod +x openbox-x86_64-unknown-linux-gnu.AppImage
+./openbox-x86_64-unknown-linux-gnu.AppImage
 ```
+
+Keep the AppImage in a writable folder to use automatic updates. If FUSE is unavailable, run it with `--appimage-extract-and-run`. The download includes the Openbox icon and desktop entry for AppImage launchers. FFmpeg and the system audio libraries are still required.
+
+On Windows, extract the ZIP and run `openbox.exe`. On macOS, extract the archive and move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
 
 ## Run
 
@@ -193,7 +194,7 @@ The compiled executable is `target/release/openbox`. See [validation details](do
 
 ### Corresponding-source archive
 
-Release source downloads include Cargo dependencies and FFTW 3.3.10. Extract the archive, set `OPENBOX_FFTW_SOURCE` to the absolute path of `native/fftw-3.3.10`, then run `cargo build --release --locked --offline`. The platform compiler, CMake and development libraries described above remain required. The generated `.cargo/config.toml` resolves the vendored crates without contacting their registries.
+Release source downloads include Cargo dependencies, FFTW 3.3.10 and the AppImage runtime sources under `native/appimage`. Extract the archive, set `OPENBOX_FFTW_SOURCE` to the absolute path of `native/fftw-3.3.10`, then run `cargo build --release --locked --offline`. The platform compiler, CMake and development libraries described above remain required. The generated `.cargo/config.toml` resolves the vendored crates without contacting their registries.
 
 Mac downloads contain `Openbox.app` for macOS 15 or later. Move it to a writable Applications location before using in-app updates. Downloads are unsigned and not notarized. FFmpeg and ffprobe remain separate runtime requirements on each platform.
 

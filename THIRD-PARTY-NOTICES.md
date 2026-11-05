@@ -26,3 +26,9 @@ The application menus use [Iced AW](https://github.com/iced-rs/iced_aw), MIT lic
 ## OneLibrary
 
 The OneLibrary schema and device key decoding are adapted from [Baken](https://github.com/M-Igashi/baken/tree/8446116b51dba57370c37ff3bcc1efd69ab9ab40), commit `8446116b51dba57370c37ff3bcc1efd69ab9ab40`, under MIT. The key encoding originates in [pyrekordbox](https://github.com/dylanljones/pyrekordbox), also MIT. Their license texts are included in `crates/rekordbox/src/onelibrary/`. Device database encryption and authentication use SQLCipher through rusqlite, with SQLCipher 4 defaults. The exact SQLCipher and OpenSSL source versions are locked in Cargo.lock and must accompany corresponding-source distributions.
+
+## Linux AppImage
+
+Linux packaging follows the official [AppDir layout](https://docs.appimage.org/packaging-guide/overview.html), using an `AppRun` symlink to the executable. The build uses [appimagetool 1.9.1](https://github.com/AppImage/appimagetool/releases/tag/1.9.1) and the unmodified [type2-runtime 20251108](https://github.com/AppImage/type2-runtime/releases/tag/20251108), commit `dd6cebedcbddde9c82f89b011e8e1d40b6e43868`. Both downloads are checksum-pinned by `scripts/prepare-appimage.py`.
+
+The distributed runtime is MIT licensed and statically links libfuse (LGPLv2.1), squashfuse (BSD), musl (MIT), Zstandard (BSD), zlib and mimalloc (MIT). Their notices are in `usr/share/openbox/licenses/AppImage` inside the AppImage. The corresponding-source download includes the runtime build scripts and patches, libfuse 3.15.0 source and squashfuse 0.5.2 source under `native/appimage`. Extract those archives and use the upstream runtime's `BUILD.md` and Docker build scripts to rebuild and relink the runtime. Openbox's binary can be extracted with `--appimage-extract` and repackaged with a modified runtime using appimagetool's `--runtime-file` option.
