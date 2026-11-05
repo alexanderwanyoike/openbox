@@ -391,6 +391,14 @@ impl App {
                     } else {
                         colors.muted
                     };
+                    let full_value = matches!(
+                        column,
+                        SortColumn::Title
+                            | SortColumn::Artist
+                            | SortColumn::Album
+                            | SortColumn::Genre
+                    )
+                    .then(|| value.clone());
                     let label: Element<'_, Message> = text(value)
                         .size(12)
                         .color(color)
@@ -401,6 +409,11 @@ impl App {
                             .spacing(7)
                             .align_y(Alignment::Center)
                             .into()
+                    } else {
+                        label
+                    };
+                    let label = if let Some(value) = full_value {
+                        icons::hint(label, value).into()
                     } else {
                         label
                     };
