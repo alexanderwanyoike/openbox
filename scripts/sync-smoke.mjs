@@ -58,6 +58,49 @@ function envelopes(frequency, pcm) {
   }
   return result;
 }
+function matchingBpm(name) {
+  const shape = left => {
+    const pgm = execFileSync('convert', [join(screenshots, `${name}.png`),
+      '-crop', `85x24+${left}+${integrated ? 115 : 60}`, '-channel', 'RGB', '-separate', '+channel',
+      '-evaluate-sequence', 'max', '-threshold', '45%', '-trim', '+repage', '-depth', '8', 'pgm:-']);
+    const header = pgm.toString('ascii', 0, 40).match(/^P5\n(\d+) (\d+)\n255\n/);
+    assert.ok(header, 'Invalid BPM glyph capture');
+    return { width: Number(header[1]), height: Number(header[2]), data: pgm.subarray(header[0].length) };
+  };
+  const a = shape(435), b = shape(integrated ? 1280 : 1283);
+  if (a.width !== b.width || a.height !== b.height) return false;
+  const contains = (source, target) => {
+    for (let y = 0; y < source.height; y++) for (let x = 0; x < source.width; x++) {
+      if (!source.data[y * source.width + x]) continue;
+      let found = false;
+      for (let yy = Math.max(0, y - 1); yy <= Math.min(target.height - 1, y + 1); yy++) {
+        for (let xx = Math.max(0, x - 1); xx <= Math.min(target.width - 1, x + 1); xx++) {
+          found ||= target.data[yy * target.width + xx] > 0;
+        }
+      }
+      if (!found) return false;
+    }
+    return true;
+  };
+  return contains(a, b) && contains(b, a);
+}
+
+async function assertBeatAlignment(frequencyA, frequencyB, label) {
+  samples = Buffer.alloc(0);
+  await delay(6000);
+  const a = envelopes(frequencyA, samples);
+  const b = envelopes(frequencyB, samples);
+  assert.ok(a.length > 200, 'No recorded output');
+  const mean = values => values.reduce((sum, v) => sum + v, 0) / values.length;
+  const ma = mean(a), mb = mean(b);
+  let covariance = 0, va = 0, vb = 0;
+  for (let n = 0; n < a.length; n++) { covariance += (a[n] - ma) * (b[n] - mb); va += (a[n] - ma) ** 2; vb += (b[n] - mb) ** 2; }
+  const correlation = covariance / Math.sqrt(va * vb);
+  console.log(`${label}: beat-envelope correlation ${correlation.toFixed(3)}`);
+  assert.ok(ma > 0.002 && mb > 0.002, `${label}: both decks must remain audible at the expected tempo`);
+  assert.ok(correlation > 0.9, `${label}: recorded beat pulses are not aligned`);
+}
+
 try {
   for (let n = 0; n < 100 && !window; n++) {
     if (app.exitCode !== null) throw new Error(logs);
@@ -77,34 +120,40 @@ try {
   await delay(700);
   await click(45, transportY);
   await capture('sync-before');
+  assert.ok(!matchingBpm('sync-before'), 'Fixture must begin with different playback tempos');
   await click(integrated ? 302 : 290, transportY);
   await delay(2000);
   await capture('sync-active');
-  const bpmGlyphs = left => execFileSync('convert', [join(screenshots, 'sync-active.png'),
-    '-crop', `85x24+${left}+${integrated ? 115 : 60}`, '-channel', 'RGB', '-separate', '+channel',
-    '-evaluate-sequence', 'max', '-threshold', '45%', '-trim', '+repage', '-depth', '8', 'gray:-']);
-  const digitsA = bpmGlyphs(435), digitsB = bpmGlyphs(integrated ? 1280 : 1283);
-  const difference = [...digitsA].filter((value, n) => value !== digitsB[n]).length / digitsA.length;
-  assert.ok(digitsA.length === digitsB.length && difference < 0.04,
-    `Synced decks show different BPM digits (${(difference * 100).toFixed(1)}% glyph mismatch)`);
+  assert.ok(matchingBpm('sync-active'), 'Synced decks show different BPM digits');
+  await assertBeatAlignment(660 * 126 / 120, 990, 'B-first sync');
+  await click(integrated ? 243 : 235, transportY);
+  await click(integrated ? 562 : 570, integrated ? 452 : 412);
+  await delay(1500);
+  await capture('sync-handover');
+  await assertBeatAlignment(660, 990 * 120 / 126, 'Master handover and pitch follow');
+  await click(45, transportY);
+  await capture('sync-master-paused');
   samples = Buffer.alloc(0);
-  await delay(6000);
-  const a = envelopes(660 * 126 / 120, samples);
-  const b = envelopes(990, samples);
-  assert.ok(a.length > 200, 'No recorded output');
-  const mean = values => values.reduce((sum, v) => sum + v, 0) / values.length;
-  const ma = mean(a), mb = mean(b);
-  let covariance = 0, va = 0, vb = 0;
-  for (let n = 0; n < a.length; n++) { covariance += (a[n] - ma) * (b[n] - mb); va += (a[n] - ma) ** 2; vb += (b[n] - mb) ** 2; }
-  const correlation = covariance / Math.sqrt(va * vb);
-  console.log(`Recorded beat-envelope correlation: ${correlation.toFixed(3)}`);
-  assert.ok(ma > 0.002 && mb > 0.002, 'Sync A must match the already-playing B deck, including its audible pitch');
-  assert.ok(correlation > 0.9, 'Recorded beat pulses are not aligned');
+  await delay(1000);
+  const remaining = envelopes(990 * 120 / 126, samples);
+  assert.ok(remaining.reduce((sum, value) => sum + value, 0) / remaining.length > 0.002,
+    'Pausing the master interrupted the other deck');
+  await click(45, transportY);
+  await delay(1500);
+  await capture('sync-resumed');
+  await assertBeatAlignment(660, 990 * 120 / 126, 'Pause and restart');
+  for (const [name, px] of [['sync-cue', integrated ? 117 : 111], ['sync-set-cue', integrated ? 176 : 165]]) {
+    await click(px, transportY);
+    await capture(name);
+    await click(45, transportY);
+    await delay(1500);
+    await assertBeatAlignment(660, 990 * 120 / 126, name);
+  }
   await click(450, integrated ? 452 : 412);
   await capture('sync-manual-pitch');
   assert.ok(readFileSync(library).equals(original), 'Sync changed library bytes');
   tracks.forEach((track, n) => assert.ok(readFileSync(track.path).equals(sources[n]), 'Sync changed audio bytes'));
-  console.log('Native sync smoke passed: two loaded analyzed tracks, automatic master from the first playing deck, aligned recorded beat envelopes and manual pitch, unchanged library and audio.');
+  console.log('Native sync smoke passed: two loaded analyzed tracks, automatic master from the first playing deck, matching local BPM readouts, master handover, pause/restart, cue/set-cue, recorded beat alignment and manual pitch, unchanged library and audio.');
 } finally {
   app.kill('SIGTERM'); recorder.kill('SIGTERM');
   execFileSync('pactl', ['unload-module', moduleId]);
