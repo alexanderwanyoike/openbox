@@ -1,6 +1,6 @@
 # Openbox
 
-A native Rust and Iced application for preparing DJ collections and managing traditional Rekordbox USB libraries.
+A native Rust and Iced application for preparing DJ collections and managing Rekordbox Device Library and OneLibrary USB libraries.
 
 ![Collection and USB playlist workspace](docs/images/workspace.png)
 
@@ -75,7 +75,7 @@ Open Settings using the gear icon. Light and dark modes combine with eight mater
 
 ## Manage a USB
 
-Connect the root of a mounted FAT32 USB. Traditional Rekordbox libraries open directly from `PIONEER/rekordbox/export.pdb`.
+Connect the root of a mounted FAT32 USB. Traditional Device Library and OneLibrary devices open directly from `PIONEER/rekordbox/export.pdb` or `exportLibrary.db`. Exports write both formats.
 
 - **Collection to USB:** select a local playlist or folder, then export it. Matching folder paths are updated while unrelated device playlists remain intact.
 - **Add a batch to a device playlist:** select the USB playlist in the device tree. The collection opens beside it. Search or sort the collection, select any number of tracks, then click **Add to USB playlist →** once.
@@ -99,7 +99,7 @@ Imports automatically analyze BPM, beats and musical key using [aubio](https://a
 
 Lofty reads ID3 and other supported tags. Titles, artists, albums, genres, album artists, composers, comments, dates and track/disc numbers are retained; the browser and preview decks display cover artwork. USB export writes ID3v2.3 with an embedded JPEG and registers 80x80 and 240x240 artwork files. USB playlist import copies artwork, audio and the grid locally so they remain available after unplugging. Local cue editing and exporting imported cues to another device are not implemented.
 
-The application does not format drives or delete existing USB audio. Backups and old database pages accumulate with edits. The writer is not journaled against power loss or sudden removal.
+The application does not format drives or delete existing USB audio. Backups and old database pages accumulate with edits. Interrupted saves are detected through a paired-file rollback journal. Use **Recover USB** in Devices to restore the previous library files. Opening a device never performs recovery automatically. Drive-controller or filesystem behaviour during power loss or unplugging is not guaranteed.
 
 **The user has confirmed USB playlist visibility on their hardware. BPM, grid, artwork, sync/quantize and complete playback behavior still need physical XDJ-1000 validation.** File-format and GUI validation cannot prove player compatibility. See [the hardware checklist](docs/HARDWARE-VALIDATION.md).
 
