@@ -21,6 +21,7 @@ impl std::error::Error for SyncError {}
 
 #[derive(Debug, Clone)]
 pub struct BeatGrid {
+    pub(crate) bpm: f64,
     beats: Arc<[f64]>,
 }
 impl BeatGrid {
@@ -34,6 +35,7 @@ impl BeatGrid {
             return Err(SyncError::InvalidGrid);
         }
         Ok(Self {
+            bpm,
             beats: beats.into(),
         })
     }

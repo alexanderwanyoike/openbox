@@ -193,7 +193,9 @@ impl Mixer {
             let leader = self.decks[follower.index()].sync_leader;
             if leader.is_some() && (follower == id || leader == Some(id)) {
                 if matches!(control, DeckControl::Rate(_)) {
-                    self.follow_tempo(follower);
+                    if self.follow_tempo(follower).is_err() {
+                        self.release_sync(follower);
+                    }
                 } else if matches!(
                     control,
                     DeckControl::Seek(_) | DeckControl::Cue | DeckControl::PlayPause
@@ -234,14 +236,21 @@ impl Mixer {
         };
         let source_time = source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate);
         let target_time = target.cursor / f64::from(clip.sample_rate);
-        let rate = master_grid.local_bpm(source_time) * source.rate / grid.local_bpm(target_time);
+        let local_rate =
+            master_grid.local_bpm(source_time) * source.rate / grid.local_bpm(target_time);
+        let phase_available = (0.92..=1.08).contains(&local_rate);
+        let rate = if phase_available {
+            local_rate
+        } else {
+            master_grid.bpm * source.rate / grid.bpm
+        };
         if !(0.92..=1.08).contains(&rate) {
             return Err(SyncError::PitchRange);
         }
         let phase = master_grid
             .phase(source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate))
             .0;
-        let position = if target.playing && source.playing {
+        let position = if target.playing && source.playing && phase_available {
             grid.align(
                 target.cursor / f64::from(clip.sample_rate),
                 phase,
@@ -261,9 +270,9 @@ impl Mixer {
         target.upper = [0.0; 2];
         Ok(())
     }
-    fn follow_tempo(&mut self, follower: DeckId) {
+    fn follow_tempo(&mut self, follower: DeckId) -> Result<(), SyncError> {
         let Some(leader) = self.decks[follower.index()].sync_leader else {
-            return;
+            return Ok(());
         };
         let source = &self.decks[leader.index()];
         let target = &self.decks[follower.index()];
@@ -279,8 +288,9 @@ impl Mixer {
                 );
         if (0.92..=1.08).contains(&rate) {
             self.decks[follower.index()].rate = rate;
+            Ok(())
         } else {
-            self.decks[follower.index()].sync_leader = None;
+            Err(SyncError::PitchRange)
         }
     }
     fn align_phase(&mut self, follower: DeckId) {
@@ -333,11 +343,11 @@ impl Mixer {
 
     pub fn render(&mut self, output: &mut [f32], sample_rate: u32, channels: usize) {
         for follower in [DeckId::A, DeckId::B] {
-            self.follow_tempo(follower);
+            let phase_available = self.follow_tempo(follower).is_ok();
             let target = &self.decks[follower.index()];
             let adjustment = if let Some(leader) = target.sync_leader {
                 let source = &self.decks[leader.index()];
-                if target.playing && source.playing {
+                if phase_available && target.playing && source.playing {
                     let phase = |deck: &Deck| {
                         deck.grid
                             .as_ref()
