@@ -319,6 +319,12 @@ impl StagedTransfer {
             let reusable = sources
                 .iter()
                 .find(|link| link.path == path && link.source == source)
+                .filter(|link| {
+                    link.analysis_files.len() == 3
+                        && link.analysis_files.iter().all(|relative| {
+                            safe_path(root, relative).is_ok_and(|path| path.is_file())
+                        })
+                })
                 .and_then(|link| target.track(link.track_id).map(|track| (link, track)))
                 .filter(|(link, track)| {
                     storage::fingerprint(&track.path).is_ok_and(|hash| hash == link.audio)
@@ -349,6 +355,17 @@ impl StagedTransfer {
                 source,
                 audio: storage::fingerprint(&song.staged_audio)?,
                 track_id: next,
+                analysis_files: song
+                    .files
+                    .iter()
+                    .filter(|path| {
+                        matches!(
+                            Path::new(path).extension().and_then(|e| e.to_str()),
+                            Some("DAT" | "EXT" | "2EX")
+                        )
+                    })
+                    .cloned()
+                    .collect(),
             });
             mapping.insert(track.id, next);
             assigned_ids.push(next);
@@ -473,7 +490,8 @@ fn prepare_song(
     let frames = rewrite::mp3_audio(&output)
         .map_err(|e| e.to_string())?
         .frames;
-    let [mut dat, ext, two_ex] = generate::build_files(&backend, &usb_path, &measured, Some(frames));
+    let [mut dat, ext, two_ex] =
+        generate::build_files(&backend, &usb_path, &measured, Some(frames));
     if let Some(grid) = &track.details.analysis {
         *dat.find_mut(b"PQTZ")
             .ok_or("Generated analysis has no beat-grid section")? =

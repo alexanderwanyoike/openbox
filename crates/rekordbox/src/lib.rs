@@ -33,6 +33,8 @@ struct SourceLink {
     source: String,
     audio: String,
     track_id: u64,
+    #[serde(default)]
+    analysis_files: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
