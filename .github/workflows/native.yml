@@ -33,31 +33,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Linux dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libfftw3-dev libxkbcommon-dev libwayland-dev pkg-config ffmpeg
-      - name: macOS dependencies
-        if: runner.os == 'macOS'
-        run: brew install ffmpeg
-      - name: Windows decoder
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: choco install ffmpeg --no-progress -y
-      - name: Prepare pinned FFTW source
-        shell: python
-        run: |
-          import hashlib, os, pathlib, tarfile, urllib.request
-          destination = pathlib.Path('.native').resolve()
-          destination.mkdir(exist_ok=True)
-          archive = destination / 'fftw-3.3.10.tar.gz'
-          urllib.request.urlretrieve('https://fftw.org/fftw-3.3.10.tar.gz', archive)
-          expected = '56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467'
-          if hashlib.sha256(archive.read_bytes()).hexdigest() != expected:
-              raise SystemExit('FFTW source checksum mismatch')
-          with tarfile.open(archive) as source:
-              source.extractall(destination, filter='data')
-          with open(os.environ['GITHUB_ENV'], 'a') as environment:
-              environment.write(f'OPENBOX_FFTW_SOURCE={destination / "fftw-3.3.10"}\n')
+      - uses: ./.github/actions/native-setup
       - name: Build native executable
         run: cargo build --locked --target ${{ matrix.target }} --no-default-features --features desktop
       - name: Test native code
