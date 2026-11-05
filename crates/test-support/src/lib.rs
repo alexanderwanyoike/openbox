@@ -110,7 +110,7 @@ pub fn audio(path: &Path) {
 }
 
 pub fn rhythm(path: &Path) {
-    let status = std::process::Command::new("ffmpeg")
+    let status = openbox_media_tools::Tools::system().ffmpeg()
         .args(["-nostdin", "-v", "error", "-f", "lavfi", "-i",
             "aevalsrc=0.25*sin(2*PI*130.8128*t)+0.15*sin(2*PI*164.8138*t)+0.15*sin(2*PI*195.9977*t)+0.12*sin(2*PI*261.6256*t)+0.7*exp(-60*mod(t\\,0.5))*sin(2*PI*70*t):s=22050:d=32",
             "-c:a", "pcm_s16le"])
@@ -119,7 +119,8 @@ pub fn rhythm(path: &Path) {
 }
 
 pub fn mp3(path: &Path) {
-    let status = std::process::Command::new("ffmpeg")
+    let status = openbox_media_tools::Tools::system()
+        .ffmpeg()
         .args([
             "-nostdin",
             "-v",

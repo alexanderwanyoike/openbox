@@ -7,6 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+openbox-media-tools.workspace = true
 openbox-domain.workspace = true
 openbox-storage.workspace = true
 serde.workspace = true

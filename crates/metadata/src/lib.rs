@@ -6,7 +6,7 @@ pub use tags::write_mp3;
 
 use lofty::{file::TaggedFileExt, picture::PictureType, prelude::*, tag::ItemKey};
 use openbox_domain::{Track, TrackDetails};
-use std::{path::Path, process::Command};
+use std::path::Path;
 
 pub fn album_artist(path: &Path) -> String {
     lofty::probe::Probe::open(path)
@@ -26,7 +26,8 @@ pub fn album_artist(path: &Path) -> String {
 }
 
 pub fn read(path: &Path, artwork: &Path) -> Result<Track, String> {
-    let output = Command::new("ffprobe")
+    let output = openbox_media_tools::Tools::system()
+        .ffprobe()
         .args([
             "-v",
             "error",
