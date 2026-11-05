@@ -3244,6 +3244,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "iced",
+ "image",
  "openbox-audio",
  "openbox-domain",
  "openbox-library",
