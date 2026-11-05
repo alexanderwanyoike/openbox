@@ -143,6 +143,7 @@ fn build<T: SizedSample + FromSample<f32>>(
                     *target = T::from_sample(sample);
                 }
             }
+            // The cursor is at the end of queued audio, ahead of the display clock.
             mixer.set_render_time(started + lead + duration);
         },
         move |e| {
