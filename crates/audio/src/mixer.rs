@@ -240,13 +240,16 @@ impl Mixer {
         let phase = master_grid
             .phase(source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate))
             .0;
-        let position = grid
-            .align(
+        let position = if target.playing && source.playing {
+            grid.align(
                 target.cursor / f64::from(clip.sample_rate),
                 phase,
                 clip.duration(),
             )
-            .ok_or(SyncError::InvalidGrid)?;
+            .ok_or(SyncError::InvalidGrid)?
+        } else {
+            target_time
+        };
         self.decks[leader.index()].sync_leader = None;
         let target = &mut self.decks[follower.index()];
         target.sync_leader = Some(leader);
