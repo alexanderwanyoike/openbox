@@ -63,7 +63,9 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
         fs::create_dir_all(&resources).unwrap();
         fs::write(resources.join("updated.txt"), "new resource").unwrap();
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    fs::copy(staged.join(package.binary), &archive).unwrap();
+    #[cfg(target_os = "macos")]
     assert!(
         Command::new("tar")
             .args(["-czf"])
