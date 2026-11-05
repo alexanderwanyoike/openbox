@@ -160,6 +160,7 @@ impl App {
             let mut tools = row![
                 text_input("Playlist name", &self.rename_name)
                     .on_input(Message::RenameName)
+                    .on_submit(Message::RenamePlaylist)
                     .id("playlist-name")
                     .size(12)
                     .padding(8)
