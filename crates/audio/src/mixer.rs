@@ -363,7 +363,12 @@ impl Mixer {
                             .0
                     };
                     let error = (phase(source) - phase(target) + 0.5).rem_euclid(1.0) - 0.5;
-                    (1.0 + error * 0.5).clamp(0.98, 1.02)
+                    let desired = if error.abs() <= 0.01 {
+                        1.0
+                    } else {
+                        (1.0 + error * 0.7).clamp(0.95, 1.05)
+                    };
+                    target.adjustment + (desired - target.adjustment).clamp(-0.02, 0.02)
                 } else {
                     1.0
                 }
