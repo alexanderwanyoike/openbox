@@ -301,6 +301,30 @@ mod tests {
     }
 
     #[test]
+    fn a_playlist_present_only_in_onelibrary_is_never_silently_removed() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+        {
+            let db = onelibrary::connect(&usb.path().join(onelibrary::DATABASE)).unwrap();
+            db.execute(
+                "INSERT INTO playlist VALUES (999,1,'Modern only',NULL,0,0)",
+                [],
+            )
+            .unwrap();
+        }
+        let mut device = open(usb.path()).unwrap();
+        let id = device.library.playlists()[0].id;
+        device.library.rename_playlist(id, "Renamed").unwrap();
+        let before = openbox_test_support::files(usb.path());
+        let error = save_playlists(&device)
+            .expect_err("Different device libraries must be reconciled rather than overwritten");
+        assert!(error.contains("differ"), "{error}");
+        assert_eq!(openbox_test_support::files(usb.path()), before);
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
