@@ -412,7 +412,9 @@ impl StagedTransfer {
             let destination = safe_path(root, relative)?;
             std::fs::create_dir_all(destination.parent().unwrap()).map_err(|e| e.to_string())?;
             let source = safe_path(self.folder.path(), relative)?;
-            std::fs::File::open(&source)
+            std::fs::File::options()
+                .write(true)
+                .open(&source)
                 .and_then(|f| f.sync_all())
                 .map_err(|e| e.to_string())?;
             tempfile::TempPath::try_from_path(source)

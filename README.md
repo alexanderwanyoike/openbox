@@ -8,7 +8,9 @@ A native Rust and Iced application for preparing DJ collections and managing Rek
 
 ## Run
 
-Requires Rust 1.89 or newer, FFmpeg with `libmp3lame`, `ffprobe`, a C++11 compiler, the FFTW3 runtime (`libfftw3-double3` on Debian/Ubuntu), and the usual Linux desktop libraries. Analysis engines build through Cargo; no additional command-line analyzer is required.
+Source builds use Rust 1.96.1, FFmpeg with `libmp3lame`, `ffprobe` and a C++14 compiler. Linux development can use the FFTW3 system runtime (`libfftw3-double3` on Debian/Ubuntu). Native builds can instead set `OPENBOX_FFTW_SOURCE` to the FFTW 3.3.10 source directory and build it statically with CMake. Release builds use this source path. Analysis engines build through Cargo; no additional command-line analyzer is required.
+
+macOS source builds also need Xcode command-line tools for Clang and libclang. Windows source builds use the Rust MSVC toolchain, Visual Studio's C++ build tools, CMake, Perl for vendored OpenSSL, and the FFTW source path above. See the [native workflow](.github/workflows/native.yml) for the exact dependencies and checksum-verified source preparation.
 
 Building audio preview on Linux also requires ALSA development headers (`libasound2-dev` on Debian/Ubuntu) and `pkg-config`. Playback uses the desktop's default audio output, including PulseAudio/PipeWire through ALSA.
 

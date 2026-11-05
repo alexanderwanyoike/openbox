@@ -1572,14 +1572,14 @@ mod tests {
         let _ = app.update(Message::Search("house".into()));
         let _ = app.update(Message::SelectTrack(selected[0]));
         let _ = app.update(Message::Keyboard(keyboard::Event::ModifiersChanged(
-            keyboard::Modifiers::CTRL,
+            keyboard::Modifiers::COMMAND,
         )));
         let _ = app.update(Message::Keyboard(keyboard::Event::KeyPressed {
             key: keyboard::Key::Character("a".into()),
             modified_key: keyboard::Key::Character("a".into()),
             physical_key: keyboard::key::Physical::Code(keyboard::key::Code::KeyA),
             location: keyboard::Location::Standard,
-            modifiers: keyboard::Modifiers::CTRL,
+            modifiers: keyboard::Modifiers::COMMAND,
             text: None,
             repeat: false,
         }));

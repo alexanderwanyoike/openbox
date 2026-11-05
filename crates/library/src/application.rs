@@ -149,19 +149,15 @@ impl Workspace {
                 .and_then(|s| s.to_str())
                 .unwrap_or("audio");
             let destination = assets.path().join(format!("{id}.{extension}"));
-            let mut input = std::fs::File::open(&track.path)
+            let input = std::fs::File::open(&track.path)
                 .map_err(|e| format!("Cannot import {}: {e}", track.title))?;
-            let mut output = std::fs::File::create(&destination).map_err(|e| e.to_string())?;
-            std::io::copy(&mut input, &mut output).map_err(|e| e.to_string())?;
-            output.sync_all().map_err(|e| e.to_string())?;
+            crate::assets::copy(input, &destination)?;
             let local_id = updated.import(destination, track.title.clone(), track.artist.clone());
             let mut details = track.details.clone();
             if let Some(artwork) = &details.artwork {
                 let destination = assets.path().join(format!("{id}.jpg"));
-                std::fs::copy(artwork, &destination).map_err(|e| e.to_string())?;
-                std::fs::File::open(&destination)
-                    .and_then(|f| f.sync_all())
-                    .map_err(|e| e.to_string())?;
+                let input = std::fs::File::open(artwork).map_err(|e| e.to_string())?;
+                crate::assets::copy(input, &destination)?;
                 details.artwork = Some(destination);
             }
             updated.set_details(local_id, details);
@@ -494,6 +490,7 @@ mod tests {
         let usb = tempfile::tempdir().unwrap();
         let path = dir.path().join("music.wav");
         openbox_test_support::rhythm(&path);
+        let path = path.canonicalize().unwrap();
         let mut workspace = Workspace::load(dir.path().join("library.json")).unwrap();
         let id = workspace
             .library
@@ -526,7 +523,28 @@ mod tests {
         details.artwork = Some(cover);
         workspace.library.set_details(id, details);
         workspace.device = Some(usb::export(&workspace.library, &[playlist], usb.path()).unwrap());
-        let imported = workspace.import_usb_playlist(playlist).unwrap();
+        let artwork = workspace.device.as_ref().unwrap().library.tracks()[0]
+            .details
+            .artwork
+            .as_ref()
+            .unwrap()
+            .clone();
+        let permissions = std::fs::metadata(&artwork).unwrap().permissions();
+        let mut read_only = permissions.clone();
+        read_only.set_readonly(true);
+        std::fs::set_permissions(&artwork, read_only).unwrap();
+        let result = workspace.import_usb_playlist(playlist);
+        let source_is_read_only = std::fs::metadata(&artwork)
+            .unwrap()
+            .permissions()
+            .readonly();
+        std::fs::set_permissions(&artwork, permissions).unwrap();
+        assert!(
+            source_is_read_only,
+            "Import must preserve the USB artwork's permissions"
+        );
+        let imported =
+            result.expect("Readable artwork must import even when the USB image is read-only");
         let local = Workspace::load(dir.path().join("library.json")).unwrap();
         let track = local
             .library
