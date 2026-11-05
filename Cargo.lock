@@ -3598,7 +3598,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "openbox"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "directories",
@@ -3626,7 +3626,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-analysis"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bliss-audio-aubio-rs",
  "cc",
@@ -3640,7 +3640,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-audio"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cpal",
  "openbox-media-tools",
@@ -3650,14 +3650,14 @@ dependencies = [
 
 [[package]]
 name = "openbox-domain"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "openbox-library"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "openbox-analysis",
  "openbox-domain",
@@ -3671,7 +3671,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-media-tools"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "tempfile",
  "which",
@@ -3679,7 +3679,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-metadata"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "image",
  "lofty",
@@ -3694,7 +3694,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-rekordbox"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "baken-export",
  "binrw",
@@ -3715,7 +3715,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-storage"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "openbox-domain",
  "serde_json",
@@ -3725,7 +3725,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-test-support"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "baken-export",
  "openbox-media-tools",
@@ -3733,7 +3733,7 @@ dependencies = [
 
 [[package]]
 name = "openbox-updater"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "self_update",
  "semver",
