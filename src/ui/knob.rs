@@ -92,6 +92,12 @@ impl canvas::Program<Message> for Knob<'_> {
     ) -> Option<Action<Message>> {
         let publish = |value| Action::publish((self.on_change)(value)).and_capture();
         match event {
+            canvas::Event::Window(iced::window::Event::Unfocused) => {
+                state.drag = None;
+                state.last_click = None;
+                state.modifiers = keyboard::Modifiers::default();
+                Some(Action::request_redraw())
+            }
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
                 if cursor.is_over(bounds) =>
             {

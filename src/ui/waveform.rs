@@ -80,6 +80,10 @@ impl canvas::Program<Message> for Wave<'_> {
         bounds: Rectangle,
         cursor: mouse::Cursor,
     ) -> Option<Action<Message>> {
+        if matches!(event, canvas::Event::Window(iced::window::Event::Unfocused)) {
+            state.drag = None;
+            return Some(Action::request_redraw());
+        }
         if let canvas::Event::Window(iced::window::Event::RedrawRequested(at)) = event {
             state.frame_at = Some(*at);
             if self.playing && self.position_at(*at) < self.waveform.map_or(0.0, |w| w.duration) {
