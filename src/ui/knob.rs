@@ -276,4 +276,45 @@ mod tests {
                 .is_none()
         );
     }
+    #[test]
+    fn losing_window_focus_cancels_knob_drag_and_double_click_state() {
+        let knob = Knob {
+            range: 0.0..=1.0,
+            value: 0.8,
+            default: 0.5,
+            step: 0.01,
+            accent: Color::WHITE,
+            on_change: Box::new(|value| {
+                Message::Preview(super::super::preview::Event::Master(value))
+            }),
+        };
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(30.0, 30.0));
+        let cursor = |y| mouse::Cursor::Available(Point::new(15.0, y));
+        let press = canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let mut state = State::default();
+        let _ = knob.update(&mut state, &press, bounds, cursor(15.0));
+        let _ = knob.update(
+            &mut state,
+            &canvas::Event::Window(iced::window::Event::Unfocused),
+            bounds,
+            mouse::Cursor::Unavailable,
+        );
+        let moved = knob.update(
+            &mut state,
+            &canvas::Event::Mouse(mouse::Event::CursorMoved {
+                position: Point::new(15.0, 70.0),
+            }),
+            bounds,
+            cursor(70.0),
+        );
+        assert!(
+            moved.and_then(|action| action.into_inner().0).is_none(),
+            "Focus loss must cancel a knob gesture"
+        );
+        let next = knob.update(&mut state, &press, bounds, cursor(15.0));
+        assert!(
+            next.and_then(|action| action.into_inner().0).is_none(),
+            "The first new press must start a drag, not reset the value"
+        );
+    }
 }

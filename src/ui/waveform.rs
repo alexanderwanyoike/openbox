@@ -790,4 +790,64 @@ mod tests {
         assert_eq!(detail.drag_seek(20.0, 2.0), 0.0);
         assert_eq!(detail.seek_at(50.0), 100.0);
     }
+    #[test]
+    fn losing_window_focus_cancels_waveform_scrubbing() {
+        use canvas::Program;
+        let clip = openbox_audio::Clip::from_pcm(vec![1000; 200_000], 1000).unwrap();
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(600.0, 150.0));
+        for overview in [true, false] {
+            let wave = Wave {
+                waveform: Some(&clip.waveform),
+                theme: WaveformTheme::Classic,
+                deck: DeckId::A,
+                position: 20.0,
+                playing: false,
+                rate: 1.0,
+                sampled_at: Instant::now(),
+                cue: 0.0,
+                span: 4.0,
+                overview,
+                color: Color::WHITE,
+                beats: &[],
+            };
+            let mut state = State::default();
+            let _ = wave.update(
+                &mut state,
+                &canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+                bounds,
+                mouse::Cursor::Available(Point::new(150.0, 50.0)),
+            );
+            let _ = wave.update(
+                &mut state,
+                &canvas::Event::Window(iced::window::Event::Unfocused),
+                bounds,
+                mouse::Cursor::Unavailable,
+            );
+            let _ = wave.update(
+                &mut state,
+                &canvas::Event::Window(iced::window::Event::Focused),
+                bounds,
+                mouse::Cursor::Unavailable,
+            );
+            let moved = wave.update(
+                &mut state,
+                &canvas::Event::Mouse(mouse::Event::CursorMoved {
+                    position: Point::new(800.0, 50.0),
+                }),
+                bounds,
+                mouse::Cursor::Available(Point::new(800.0, 50.0)),
+            );
+            assert!(
+                moved.and_then(|action| action.into_inner().0).is_none(),
+                "A pointer returning after focus loss must not seek the track"
+            );
+            let released = wave.update(
+                &mut state,
+                &canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+                bounds,
+                mouse::Cursor::Available(Point::new(800.0, 50.0)),
+            );
+            assert!(released.and_then(|action| action.into_inner().0).is_none());
+        }
+    }
 }
