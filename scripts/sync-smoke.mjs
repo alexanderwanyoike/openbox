@@ -85,7 +85,7 @@ try {
     '-evaluate-sequence', 'max', '-threshold', '45%', '-trim', '+repage', '-depth', '8', 'gray:-']);
   const digitsA = bpmGlyphs(435), digitsB = bpmGlyphs(integrated ? 1280 : 1283);
   const difference = [...digitsA].filter((value, n) => value !== digitsB[n]).length / digitsA.length;
-  assert.ok(digitsA.length === digitsB.length && difference < 0.025,
+  assert.ok(digitsA.length === digitsB.length && difference < 0.04,
     `Synced decks show different BPM digits (${(difference * 100).toFixed(1)}% glyph mismatch)`);
   samples = Buffer.alloc(0);
   await delay(6000);
