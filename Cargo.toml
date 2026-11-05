@@ -6,7 +6,7 @@ resolver = "3"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
-version = "0.1.1"
+version = "0.1.2"
 
 [workspace.dependencies]
 openbox-media-tools = { path = "crates/media-tools" }
