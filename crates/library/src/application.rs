@@ -159,7 +159,9 @@ impl Workspace {
             if let Some(artwork) = &details.artwork {
                 let destination = assets.path().join(format!("{id}.jpg"));
                 std::fs::copy(artwork, &destination).map_err(|e| e.to_string())?;
-                std::fs::File::open(&destination)
+                std::fs::File::options()
+                    .write(true)
+                    .open(&destination)
                     .and_then(|f| f.sync_all())
                     .map_err(|e| e.to_string())?;
                 details.artwork = Some(destination);
