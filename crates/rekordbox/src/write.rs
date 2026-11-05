@@ -83,3 +83,27 @@ impl DeviceWrite {
         Ok(lock)
     }
 }
+
+impl Drop for DeviceWrite {
+    fn drop(&mut self) {
+        // A concurrent process spawn can inherit the descriptor and outlive this write.
+        let _ = self._file.unlock();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn a_completed_writer_releases_its_lock_even_if_a_descriptor_was_inherited() {
+        let root = tempfile::tempdir().unwrap();
+        let writer = DeviceWrite::acquire(root.path()).unwrap();
+        let inherited = writer._file.try_clone().unwrap();
+        drop(writer);
+        let _next = DeviceWrite::acquire(root.path())
+            .expect("A completed writer must not leave its lock held by inherited descriptors");
+        assert!(inherited.metadata().unwrap().is_file());
+    }
+}
