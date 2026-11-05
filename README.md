@@ -26,6 +26,14 @@ Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `
 
 Extract the archive and run Openbox. On macOS, move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
 
+The Linux archive includes desktop launchers and icons. To install them for your account, run these commands from the extracted archive and ensure `~/.local/bin` is on your desktop session's PATH:
+
+```sh
+install -Dm755 openbox "$HOME/.local/bin/openbox"
+mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}"
+cp -R share/. "${XDG_DATA_HOME:-$HOME/.local/share}/"
+```
+
 ## Run
 
 Source builds use Rust 1.96.1, FFmpeg with `libmp3lame`, `ffprobe` and a C++14 compiler. Linux development can use the FFTW3 system runtime (`libfftw3-double3` on Debian/Ubuntu). Native builds can instead set `OPENBOX_FFTW_SOURCE` to the FFTW 3.3.10 source directory and build it statically with CMake. Release builds use this source path. Analysis engines build through Cargo; no additional command-line analyzer is required.
