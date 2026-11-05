@@ -301,7 +301,7 @@ impl Database {
             || word(&bytes, 0)? != 0
             || word(&bytes, 4)? as usize != PAGE_LEN
         {
-            return Err("Unsupported or damaged Rekordbox database".into());
+            return Err("Unsupported or damaged device database".into());
         }
         let count = word(&bytes, 8)? as usize;
         if count > (PAGE_LEN - 28) / 16 {

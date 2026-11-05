@@ -133,7 +133,7 @@ pub fn put_tracks_with_progress(
 }
 
 pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
-    open_existing(root)?.ok_or("This USB has no Rekordbox library".into())
+    open_existing(root)?.ok_or("This USB has no supported DJ library".into())
 }
 
 pub fn open_existing(root: &Path) -> Result<Option<DeviceLibrary>, String> {
@@ -149,7 +149,11 @@ pub fn open_existing(root: &Path) -> Result<Option<DeviceLibrary>, String> {
     let has_legacy = legacy.is_some();
     let database = match legacy {
         Some(bytes) => Database::read(bytes)?,
-        None => onelibrary::legacy(modern.as_ref().ok_or("This USB has no Rekordbox library")?)?,
+        None => onelibrary::legacy(
+            modern
+                .as_ref()
+                .ok_or("This USB has no supported DJ library")?,
+        )?,
     };
     let library = database.library(&root)?;
     let sources = std::fs::read(safe_path(&root, MANIFEST)?)

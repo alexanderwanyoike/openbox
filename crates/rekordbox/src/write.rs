@@ -21,7 +21,7 @@ pub(super) fn commit(
     if expected_modern
         .is_some_and(|snapshot| snapshot.wal.as_ref().is_some_and(|wal| !wal.is_empty()))
     {
-        return Err("Close rekordbox and safely eject the USB before editing it in Openbox. Its OneLibrary write-ahead log is still active.".into());
+        return Err("Close other DJ software and safely eject the USB before editing it in Openbox. Its OneLibrary write-ahead log is still active.".into());
     }
     let modern = super::onelibrary::create(pdb, baseline, expected_modern)?;
     let mut library = library.clone();

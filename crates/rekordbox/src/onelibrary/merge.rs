@@ -32,7 +32,7 @@ pub(super) fn apply(db: &mut Connection, incoming: &Path, baseline: &Path) -> Re
             &format!("SELECT {}", selection.replace("{schema}", "baseline")),
         )?;
         if current != original {
-            return Err("The traditional and OneLibrary records differ. Synchronize this USB in rekordbox before editing it.".into());
+            return Err("The traditional and OneLibrary records differ. Synchronize both device libraries in the application that created them before editing this USB.".into());
         }
     }
     let tx = db.transaction().map_err(error)?;
@@ -81,7 +81,7 @@ pub(super) fn apply(db: &mut Connection, incoming: &Path, baseline: &Path) -> Re
             let id_value = integer(&row[0]).ok_or("Invalid OneLibrary identity")?;
             if map.get(&id_value).copied() != Some(&row[1..]) {
                 return Err(format!(
-                    "The traditional and OneLibrary {table} records differ. Synchronize this USB in rekordbox before editing it."
+                    "The traditional and OneLibrary {table} records differ. Synchronize both device libraries in the application that created them before editing this USB."
                 ));
             }
         }
