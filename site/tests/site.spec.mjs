@@ -48,6 +48,20 @@ test("the project site shows the actual workspace and valid release navigation",
   );
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
+  await expect(
+    page.getByAltText("Openbox library, decks and mixer"),
+  ).toHaveJSProperty(
+    "currentSrc",
+    "http://127.0.0.1:4173/assets/workspace-light.png",
+  );
+  await expect(
+    page.getByAltText(
+      "Local collection beside a USB playlist with shared editing controls",
+    ),
+  ).toHaveJSProperty(
+    "currentSrc",
+    "http://127.0.0.1:4173/assets/usb-playlist-light.png",
+  );
   await expect(page.locator("html")).toHaveCSS(
     "background-color",
     "rgb(242, 242, 242)",
