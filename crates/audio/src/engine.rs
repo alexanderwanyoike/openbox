@@ -1,4 +1,4 @@
-use crate::{Clip, DeckControl, DeckId, Mixer, Snapshot};
+use crate::{BeatGrid, Clip, DeckControl, DeckId, Mixer, Snapshot, SyncError};
 use cpal::{
     FromSample, SizedSample,
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -62,6 +62,18 @@ impl Engine {
     }
     pub fn control(&self, deck: DeckId, control: DeckControl) {
         self.0.mixer.lock().unwrap().control(deck, control);
+    }
+    pub fn set_beat_grid(&self, deck: DeckId, grid: BeatGrid) {
+        self.0.mixer.lock().unwrap().set_beat_grid(deck, grid);
+    }
+    pub fn sync_to(&self, follower: DeckId, leader: DeckId) -> Result<(), SyncError> {
+        self.0.mixer.lock().unwrap().sync_to(follower, leader)
+    }
+    pub fn clear_beat_grid(&self, deck: DeckId) {
+        self.0.mixer.lock().unwrap().clear_beat_grid(deck);
+    }
+    pub fn release_sync(&self, deck: DeckId) {
+        self.0.mixer.lock().unwrap().release_sync(deck);
     }
     pub fn crossfade(&self, value: f32) {
         self.0.mixer.lock().unwrap().set_crossfade(value);

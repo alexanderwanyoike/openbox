@@ -15,6 +15,8 @@ pub enum Event {
     Master(f32),
     Zoom(DeckId, f64),
     ResetMixer,
+    SetLeader(DeckId),
+    Sync(DeckId),
 }
 
 #[derive(Clone)]
@@ -55,8 +57,10 @@ pub(super) struct Preview {
     pub engine: Option<Engine>,
     pub decks: [Deck; 2],
     pub snapshot: Snapshot,
+    pub leader: DeckId,
     pub crossfade: f32,
     pub master: f32,
+    pub sync_error: Option<String>,
     pub error: Option<String>,
 }
 
@@ -68,8 +72,10 @@ impl Default for Preview {
             engine: None,
             decks: [Deck::default(), Deck::default()],
             snapshot: Snapshot::default(),
+            leader: DeckId::A,
             crossfade: 0.5,
             master: 0.8,
+            sync_error: None,
             error: None,
         }
     }
@@ -92,14 +98,54 @@ impl Preview {
     }
 
     pub fn tick(&mut self) {
-        if let Some(engine) = &self.engine {
+        if let Some(engine) = self.engine.clone() {
             self.snapshot = engine.snapshot();
+            let other = if self.leader == DeckId::A {
+                DeckId::B
+            } else {
+                DeckId::A
+            };
+            if !self.snapshot.decks[self.leader.index()].playing
+                && self.snapshot.decks[other.index()].playing
+            {
+                self.set_leader(other);
+                self.snapshot = engine.snapshot();
+            }
+            for (deck, snapshot) in self.decks.iter_mut().zip(self.snapshot.decks) {
+                deck.pitch = (snapshot.pitch_rate - 1.0) * 100.0;
+            }
             if let Some(error) = engine.take_error() {
                 self.error = Some(error);
                 self.engine = None;
                 for deck in &mut self.snapshot.decks {
                     deck.playing = false;
                 }
+            }
+        }
+    }
+
+    fn set_leader(&mut self, id: DeckId) {
+        if self.leader == id {
+            return;
+        }
+        self.leader = id;
+        if let Some(engine) = &self.engine {
+            let active = engine
+                .snapshot()
+                .decks
+                .iter()
+                .any(|deck| deck.sync_leader.is_some());
+            engine.release_sync(id);
+            if active {
+                let other = if id == DeckId::A {
+                    DeckId::B
+                } else {
+                    DeckId::A
+                };
+                self.sync_error = engine
+                    .sync_to(other, id)
+                    .err()
+                    .map(|error| error.to_string());
             }
         }
     }
@@ -124,6 +170,11 @@ impl Preview {
                             let deck = &self.decks[id.index()];
                             if let Some(clip) = &deck.clip {
                                 engine.load(id, clip.clone());
+                                if let Some(track) = &deck.track
+                                    && let Ok(grid) = beat_grid(track)
+                                {
+                                    engine.set_beat_grid(id, grid);
+                                }
                             }
                             engine.control(id, DeckControl::Gain(deck.gain));
                             engine.control(id, DeckControl::Fader(deck.fader));
@@ -150,6 +201,11 @@ impl Preview {
                     Ok(clip) => {
                         if let Some(engine) = &self.engine {
                             engine.load(id, clip.clone());
+                            if let Some(track) = &deck.pending
+                                && let Ok(grid) = beat_grid(track)
+                            {
+                                engine.set_beat_grid(id, grid);
+                            }
                         }
                         deck.track = deck.pending.take();
                         deck.clip = Some(clip);
@@ -181,6 +237,23 @@ impl Preview {
                 if let Some(engine) = &self.engine {
                     engine.control(id, control);
                     self.snapshot = engine.snapshot();
+                }
+                self.tick();
+            }
+            Event::SetLeader(id) => {
+                self.set_leader(id);
+                self.tick();
+            }
+            Event::Sync(id) if id != self.leader => {
+                if let Some(engine) = &self.engine {
+                    if self.snapshot.decks[id.index()].sync_leader.is_some() {
+                        engine.release_sync(id);
+                    } else if let Err(error) = engine.sync_to(id, self.leader) {
+                        self.sync_error = Some(error.to_string());
+                        return Task::none();
+                    }
+                    self.sync_error = None;
+                    self.tick();
                 }
             }
             Event::Crossfade(value) => {
@@ -217,6 +290,28 @@ impl Preview {
         self.error = None;
         Task::perform(background(Engine::start), Event::Ready)
     }
+}
+
+pub(super) fn beat_grid(
+    track: &Track,
+) -> Result<openbox_audio::BeatGrid, openbox_audio::SyncError> {
+    let bpm = track
+        .details
+        .bpm
+        .ok_or(openbox_audio::SyncError::MissingGrid)?;
+    let analysis = track
+        .details
+        .analysis
+        .as_ref()
+        .ok_or(openbox_audio::SyncError::MissingGrid)?;
+    openbox_audio::BeatGrid::new(
+        bpm,
+        analysis
+            .beats
+            .iter()
+            .map(|beat| beat.time_seconds)
+            .collect(),
+    )
 }
 
 #[cfg(test)]

@@ -186,6 +186,9 @@ impl App {
             Message::Preview(event) => {
                 let task = self.preview.update(event).map(Message::Preview);
                 self.refresh_preview_metadata();
+                if let Some(error) = &self.preview.sync_error {
+                    self.notice(error.clone(), true);
+                }
                 return task;
             }
             Message::Switch(target) => {
@@ -942,7 +945,7 @@ impl App {
     }
 
     fn refresh_preview_metadata(&mut self) {
-        for deck in &mut self.preview.decks {
+        for (index, deck) in self.preview.decks.iter_mut().enumerate() {
             for track in [deck.track.as_mut(), deck.pending.as_mut()]
                 .into_iter()
                 .flatten()
@@ -956,6 +959,17 @@ impl App {
                     && current != track
                 {
                     *track = current.clone();
+                    if let Some(engine) = &self.preview.engine {
+                        let id = if index == 0 {
+                            openbox_audio::DeckId::A
+                        } else {
+                            openbox_audio::DeckId::B
+                        };
+                        match preview::beat_grid(track) {
+                            Ok(grid) => engine.set_beat_grid(id, grid),
+                            Err(_) => engine.clear_beat_grid(id),
+                        }
+                    }
                 }
             }
         }

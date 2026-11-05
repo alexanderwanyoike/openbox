@@ -1,4 +1,4 @@
-use crate::Clip;
+use crate::{BeatGrid, Clip, SyncError};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeckId {
@@ -50,8 +50,12 @@ pub struct DeckSnapshot {
     pub duration: f64,
     pub playing: bool,
     pub rate: f64,
+    pub pitch_rate: f64,
+    pub bpm: Option<f64>,
     pub peak: f32,
     pub cue: f64,
+    pub sync_leader: Option<DeckId>,
+    pub sync_phase: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -62,10 +66,14 @@ pub struct Snapshot {
 }
 
 struct Deck {
+    grid: Option<BeatGrid>,
+    sync_leader: Option<DeckId>,
+    sync_phase: bool,
     clip: Option<Clip>,
     cursor: f64,
     playing: bool,
     rate: f64,
+    adjustment: f64,
     gain: f32,
     fader: f32,
     peak: f32,
@@ -78,10 +86,14 @@ struct Deck {
 impl Default for Deck {
     fn default() -> Self {
         Self {
+            grid: None,
+            sync_leader: None,
+            sync_phase: false,
             clip: None,
             cursor: 0.0,
             playing: false,
             rate: 1.0,
+            adjustment: 1.0,
             gain: 0.8,
             fader: 1.0,
             peak: 0.0,
@@ -115,11 +127,19 @@ impl Default for Mixer {
 
 impl Mixer {
     pub fn load(&mut self, id: DeckId, clip: Clip) {
+        for deck in &mut self.decks {
+            if deck.sync_leader == Some(id) {
+                deck.sync_leader = None;
+            }
+        }
         let deck = &mut self.decks[id.index()];
         deck.clip = Some(clip);
+        deck.grid = None;
+        deck.sync_leader = None;
         deck.cursor = 0.0;
         deck.playing = false;
         deck.rate = 1.0;
+        deck.adjustment = 1.0;
         deck.peak = 0.0;
         deck.cue = 0.0;
         deck.low = [0.0; 2];
@@ -127,6 +147,11 @@ impl Mixer {
     }
 
     pub fn control(&mut self, id: DeckId, control: DeckControl) {
+        let manual = matches!(control, DeckControl::Seek(_) | DeckControl::Rate(_));
+        if manual {
+            self.decks[id.index()].sync_leader = None;
+            self.decks[id.index()].adjustment = 1.0;
+        }
         let deck = &mut self.decks[id.index()];
         match control {
             DeckControl::PlayPause if deck.clip.is_some() => {
@@ -164,6 +189,121 @@ impl Mixer {
             }
             _ => {}
         }
+        for follower in [DeckId::A, DeckId::B] {
+            let leader = self.decks[follower.index()].sync_leader;
+            if leader.is_some() && (follower == id || leader == Some(id)) {
+                if matches!(control, DeckControl::Rate(_)) {
+                    if self.follow_tempo(follower).is_err() {
+                        self.release_sync(follower);
+                    }
+                } else if matches!(
+                    control,
+                    DeckControl::Seek(_)
+                        | DeckControl::Cue
+                        | DeckControl::SetCue
+                        | DeckControl::PlayPause
+                ) {
+                    self.align_phase(follower);
+                }
+            }
+        }
+    }
+
+    pub fn set_beat_grid(&mut self, id: DeckId, grid: BeatGrid) {
+        self.clear_beat_grid(id);
+        self.decks[id.index()].grid = Some(grid);
+    }
+    pub fn clear_beat_grid(&mut self, id: DeckId) {
+        for (index, deck) in self.decks.iter_mut().enumerate() {
+            if index == id.index() || deck.sync_leader == Some(id) {
+                deck.sync_leader = None;
+                deck.adjustment = 1.0;
+            }
+        }
+        self.decks[id.index()].grid = None;
+    }
+    pub fn release_sync(&mut self, id: DeckId) {
+        self.decks[id.index()].sync_leader = None;
+        self.decks[id.index()].adjustment = 1.0;
+    }
+    pub fn sync_to(&mut self, follower: DeckId, leader: DeckId) -> Result<(), SyncError> {
+        if follower == leader {
+            return Err(SyncError::SameDeck);
+        }
+        let target = &self.decks[follower.index()];
+        let source = &self.decks[leader.index()];
+        let (Some(grid), Some(master_grid), Some(clip), Some(_)) =
+            (&target.grid, &source.grid, &target.clip, &source.clip)
+        else {
+            return Err(SyncError::MissingGrid);
+        };
+        let source_time = source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate);
+        let target_time = target.cursor / f64::from(clip.sample_rate);
+        let local_rate =
+            master_grid.local_bpm(source_time) * source.rate / grid.local_bpm(target_time);
+        let phase_available = (0.92..=1.08).contains(&local_rate);
+        let rate = if phase_available {
+            local_rate
+        } else {
+            master_grid.bpm * source.rate / grid.bpm
+        };
+        if !(0.92..=1.08).contains(&rate) {
+            return Err(SyncError::PitchRange);
+        }
+        let phase = master_grid
+            .phase(source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate))
+            .0;
+        let beat_sync = target.playing && source.playing;
+        let position = if beat_sync && phase_available {
+            grid.align(
+                target.cursor / f64::from(clip.sample_rate),
+                phase,
+                clip.duration(),
+            )
+            .ok_or(SyncError::InvalidGrid)?
+        } else {
+            target_time
+        };
+        self.decks[leader.index()].sync_leader = None;
+        let target = &mut self.decks[follower.index()];
+        target.sync_leader = Some(leader);
+        target.sync_phase = phase_available && beat_sync;
+
+        target.rate = rate;
+        target.adjustment = 1.0;
+        target.cursor = position * f64::from(target.clip.as_ref().unwrap().sample_rate);
+        target.low = [0.0; 2];
+        target.upper = [0.0; 2];
+        Ok(())
+    }
+    fn follow_tempo(&mut self, follower: DeckId) -> Result<(), SyncError> {
+        let Some(leader) = self.decks[follower.index()].sync_leader else {
+            return Ok(());
+        };
+        let source = &self.decks[leader.index()];
+        let target = &self.decks[follower.index()];
+        let rate =
+            source
+                .grid
+                .as_ref()
+                .unwrap()
+                .local_bpm(source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate))
+                * source.rate
+                / target.grid.as_ref().unwrap().local_bpm(
+                    target.cursor / f64::from(target.clip.as_ref().unwrap().sample_rate),
+                );
+        if (0.92..=1.08).contains(&rate) {
+            self.decks[follower.index()].rate = rate;
+            Ok(())
+        } else {
+            Err(SyncError::PitchRange)
+        }
+    }
+    fn align_phase(&mut self, follower: DeckId) {
+        let Some(leader) = self.decks[follower.index()].sync_leader else {
+            return;
+        };
+        let _ = self.sync_to(follower, leader);
     }
 
     pub fn set_crossfade(&mut self, value: f32) {
@@ -189,8 +329,14 @@ impl Mixer {
                         .map_or(0.0, |c| d.cursor / f64::from(c.sample_rate)),
                     duration: d.clip.as_ref().map_or(0.0, Clip::duration),
                     playing: d.playing,
-                    rate: d.rate,
+                    rate: d.rate * d.adjustment,
+                    pitch_rate: d.rate,
+                    bpm: d.grid.as_ref().zip(d.clip.as_ref()).map(|(grid, clip)| {
+                        grid.local_bpm(d.cursor / f64::from(clip.sample_rate)) * d.rate
+                    }),
                     peak: d.peak,
+                    sync_leader: d.sync_leader,
+                    sync_phase: d.sync_leader.is_some() && d.sync_phase,
                     cue: d
                         .clip
                         .as_ref()
@@ -203,6 +349,38 @@ impl Mixer {
     }
 
     pub fn render(&mut self, output: &mut [f32], sample_rate: u32, channels: usize) {
+        for follower in [DeckId::A, DeckId::B] {
+            let phase_available = self.follow_tempo(follower).is_ok();
+            let target = &self.decks[follower.index()];
+            let adjustment = if let Some(leader) = target.sync_leader {
+                let source = &self.decks[leader.index()];
+                if phase_available && target.playing && source.playing {
+                    let phase = |deck: &Deck| {
+                        deck.grid
+                            .as_ref()
+                            .unwrap()
+                            .phase(deck.cursor / f64::from(deck.clip.as_ref().unwrap().sample_rate))
+                            .0
+                    };
+                    let error = (phase(source) - phase(target) + 0.5).rem_euclid(1.0) - 0.5;
+                    let desired = if error.abs() <= 0.01 {
+                        1.0
+                    } else {
+                        (1.0 + error * 0.7).clamp(0.95, 1.05)
+                    };
+                    target.adjustment + (desired - target.adjustment).clamp(-0.02, 0.02)
+                } else {
+                    1.0
+                }
+            } else {
+                1.0
+            };
+            let phase_sync = target.sync_leader.is_some_and(|leader| {
+                phase_available && target.playing && self.decks[leader.index()].playing
+            });
+            self.decks[follower.index()].sync_phase = phase_sync;
+            self.decks[follower.index()].adjustment = adjustment;
+        }
         output.fill(0.0);
         if sample_rate == 0 || channels == 0 {
             return;
@@ -244,7 +422,9 @@ impl Mixer {
                     deck.peak = deck.peak.max(value.abs());
                     *mixed += value * deck.fader * weights[i] * self.master;
                 }
-                deck.cursor += f64::from(clip.sample_rate) / f64::from(sample_rate) * deck.rate;
+                deck.cursor += f64::from(clip.sample_rate) / f64::from(sample_rate)
+                    * deck.rate
+                    * deck.adjustment;
                 if deck.cursor >= frames as f64 {
                     deck.cursor = frames as f64;
                     deck.playing = false;
