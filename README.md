@@ -4,7 +4,7 @@ A native Rust and Iced application for preparing DJ collections on Linux, Window
 
 - Search, sort and edit tracks in batches, with tags and cover artwork.
 - Organise playlists in folders and move selections between local and USB libraries.
-- Read existing Rekordbox USBs and export both Device Library and OneLibrary databases.
+- Read existing DJ USBs and export both Device Library and OneLibrary databases.
 - Preview transitions with two decks, beat sync, EQ knobs and channel faders.
 - Analyze BPM, key and beatgrids with aubio, libkeyfinder and Mixxx grid post-processing.
 - Choose light or dark mode, materials, accents and waveform palettes.
@@ -133,7 +133,7 @@ Opening a USB is read-only. Writes back up the previous database under `.openbox
 
 New collection audio is encoded as stereo 44.1 kHz, 320 kbps MP3 with DAT/EXT/2EX waveforms and detected beat entries. BPM and key are written into the device database and ID3 tags. Export compensates for MP3 priming delay so the grid follows the exported waveform. Existing USB audio, analysis and artwork remain byte for byte; unchanged transfers reuse complete prepared assets. Exports cached before modern waveform support are prepared again while retaining their previous device files.
 
-Imports automatically analyze BPM and beats using [aubio](https://aubio.org/), with constant-tempo grid post-processing adapted from [Mixxx BeatUtils](https://github.com/mixxxdj/mixxx/blob/bc49961fd3e5a46cd46588090c652a0d7ec44e18/src/track/beatutils.cpp). [libkeyfinder](https://github.com/mixxxdj/libkeyfinder) detects musical key. For existing collections, click **Analyze** for the whole library, or select a batch first, then reexport the playlist. Analysis progress appears in the status bar. Export refreshes missing or outdated Openbox analysis without changing local records or imported Rekordbox grids. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering is a reference and does not identify the musical downbeat. Dynamic-tempo recordings, tempo, key and phase still need checking by ear before relying on player sync/quantize.
+Imports automatically analyze BPM and beats using [aubio](https://aubio.org/), with constant-tempo grid post-processing adapted from [Mixxx BeatUtils](https://github.com/mixxxdj/mixxx/blob/bc49961fd3e5a46cd46588090c652a0d7ec44e18/src/track/beatutils.cpp). [libkeyfinder](https://github.com/mixxxdj/libkeyfinder) detects musical key. For existing collections, click **Analyze** for the whole library, or select a batch first, then reexport the playlist. Analysis progress appears in the status bar. Export refreshes missing or outdated Openbox analysis without changing local records or grids imported from USBs. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering is a reference and does not identify the musical downbeat. Dynamic-tempo recordings, tempo, key and phase still need checking by ear before relying on player sync/quantize.
 
 Lofty reads ID3 and other supported tags. Titles, artists, albums, genres, album artists, composers, comments, dates and track/disc numbers are retained; the browser and preview decks display cover artwork. USB export writes ID3v2.3 with an embedded JPEG and registers 80x80 and 240x240 artwork files. USB playlist import copies artwork, audio and the grid locally so they remain available after unplugging. Local cue editing and exporting imported cues to another device are not implemented.
 
@@ -179,7 +179,7 @@ xvfb-run -a -s '-screen 0 1600x1100x24' node scripts/analysis-smoke.mjs
 
 Workspace code also uses light optimization in development builds so `cargo run` keeps preview rendering responsive.
 
-The native smoke harness uses the release executable, a 510-track collection, generated audio and a real Rekordbox database fixture in isolated temporary folders. It exercises keyboard selection, bulk edits, playlist creation from selection, scrolling, sorted batch USB transfer, replacement, deletion/Undo, nested trees and import. It checks original audio, analysis and database pages byte for byte. It requires Node.js, Xvfb, xdotool and ImageMagick. Set `OPENBOX_BIN=target/debug/openbox` to test a development executable.
+The native smoke harness uses the release executable, a 510-track collection, generated audio and a real device database fixture in isolated temporary folders. It exercises keyboard selection, bulk edits, playlist creation from selection, scrolling, sorted batch USB transfer, replacement, deletion/Undo, nested trees and import. It checks original audio, analysis and database pages byte for byte. It requires Node.js, Xvfb, xdotool and ImageMagick. Set `OPENBOX_BIN=target/debug/openbox` to test a development executable.
 
 The motion check requires FFmpeg and an accelerated X11 desktop. Xvfb provides software rendering for the functional checks. The player harness also requires `pactl` and `parec`. It creates an isolated test output, records generated tones to verify the sound, and removes that output afterwards without changing the desktop's default sink.
 
