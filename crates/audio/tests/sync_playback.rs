@@ -77,3 +77,28 @@ fn sync_keeps_the_last_known_tempo_after_the_detected_grid_ends() {
         "Extrapolated sync uses a different tempo from the beat map: {error}"
     );
 }
+
+#[test]
+fn unstable_intro_estimates_do_not_reject_or_drop_a_compatible_sync_pair() {
+    let mut mixer = Mixer::default();
+    deck(&mut mixer, DeckId::A, 0.5, 120.0);
+    deck(&mut mixer, DeckId::B, 0.5, 120.0);
+    let mut beats: Vec<_> = (0..6).map(|n| n as f64 * 0.25).collect();
+    beats.extend((3..100).map(|n| n as f64 * 0.5));
+    mixer.set_beat_grid(DeckId::B, BeatGrid::new(120.0, beats).unwrap());
+    mixer.control(DeckId::A, DeckControl::PlayPause);
+    mixer.control(DeckId::B, DeckControl::PlayPause);
+    mixer
+        .sync_to(DeckId::B, DeckId::A)
+        .expect("Compatible track tempos were rejected by intro estimates");
+    for _ in 0..400 {
+        mixer.render(&mut [0.0; 100], 1000, 2);
+        assert_eq!(mixer.snapshot().decks[1].sync_leader, Some(DeckId::A));
+    }
+    let [a, b] = mixer.snapshot().decks;
+    let error = ((a.position - b.position) / 0.5 + 0.5).rem_euclid(1.0) - 0.5;
+    assert!(
+        error.abs() < 0.05,
+        "Beat sync did not recover after the intro: {error}"
+    );
+}
