@@ -163,7 +163,7 @@ impl Client {
                         self_update::Error::verification_rejected(error.to_string())
                     })?;
                 }
-                let output = std::process::Command::new(executable)
+                let output = installation::command(executable)
                     .arg("--version")
                     .output()
                     .map_err(|error| {
@@ -194,7 +194,7 @@ pub fn restart(
     executable: &Path,
     args: impl IntoIterator<Item = impl AsRef<std::ffi::OsStr>>,
 ) -> Result<(), UpdateError> {
-    std::process::Command::new(executable)
+    installation::command(executable)
         .args(args)
         .spawn()
         .map_err(|error| UpdateError::Restart(error.to_string()))?;
