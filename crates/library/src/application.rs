@@ -534,7 +534,15 @@ mod tests {
         read_only.set_readonly(true);
         std::fs::set_permissions(&artwork, read_only).unwrap();
         let result = workspace.import_usb_playlist(playlist);
+        let source_is_read_only = std::fs::metadata(&artwork)
+            .unwrap()
+            .permissions()
+            .readonly();
         std::fs::set_permissions(&artwork, permissions).unwrap();
+        assert!(
+            source_is_read_only,
+            "Import must preserve the USB artwork's permissions"
+        );
         let imported =
             result.expect("Readable artwork must import even when the USB image is read-only");
         let local = Workspace::load(dir.path().join("library.json")).unwrap();
