@@ -2,11 +2,31 @@ use super::background;
 use iced::Task;
 use openbox_audio::{Band, Clip, DeckControl, DeckId, Engine, Snapshot};
 use openbox_domain::Track;
+use std::time::Instant;
+
+pub(super) fn position_at(
+    snapshot: openbox_audio::DeckSnapshot,
+    sampled_at: Instant,
+    now: Instant,
+) -> f64 {
+    let elapsed = if snapshot.playing {
+        if let Some(elapsed) = now.checked_duration_since(sampled_at) {
+            elapsed.as_secs_f64() * snapshot.rate
+        } else {
+            -sampled_at.duration_since(now).as_secs_f64() * snapshot.rate
+        }
+    } else {
+        0.0
+    };
+    (snapshot.position + elapsed).clamp(0.0, snapshot.duration)
+}
 
 #[derive(Debug, Clone)]
 pub enum Event {
     Toggle,
     Retry,
+    DismissError,
+    ToggleErrorDetails,
     Load(DeckId),
     Ready(Result<Engine, String>),
     Loaded(DeckId, u64, Result<Clip, String>),
@@ -45,7 +65,7 @@ impl Default for Deck {
             fader: 1.0,
             eq: [0.0; 3],
             pitch: 0.0,
-            zoom: 16.0,
+            zoom: 4.0,
         }
     }
 }
@@ -58,10 +78,11 @@ pub(super) struct Preview {
     pub decks: [Deck; 2],
     pub snapshot: Snapshot,
     pub leader: DeckId,
+    pub sync_error: Option<String>,
     pub crossfade: f32,
     pub master: f32,
-    pub sync_error: Option<String>,
-    pub error: Option<String>,
+    pub error: Option<super::preview_error::Failure>,
+    pub error_details: bool,
 }
 
 impl Default for Preview {
@@ -77,6 +98,7 @@ impl Default for Preview {
             master: 0.8,
             sync_error: None,
             error: None,
+            error_details: false,
         }
     }
 }
@@ -115,7 +137,8 @@ impl Preview {
                 deck.pitch = (snapshot.pitch_rate - 1.0) * 100.0;
             }
             if let Some(error) = engine.take_error() {
-                self.error = Some(error);
+                self.error = Some(super::preview_error::Failure::output(error));
+                self.error_details = false;
                 self.engine = None;
                 for deck in &mut self.snapshot.decks {
                     deck.playing = false;
@@ -158,6 +181,11 @@ impl Preview {
                     return self.start();
                 }
             }
+            Event::DismissError => {
+                self.error = None;
+                self.error_details = false;
+            }
+            Event::ToggleErrorDetails => self.error_details = !self.error_details,
             Event::Retry if !self.starting => {
                 self.engine = None;
                 return self.start();
@@ -188,7 +216,10 @@ impl Preview {
                         self.engine = Some(engine);
                         self.error = None;
                     }
-                    Err(error) => self.error = Some(error),
+                    Err(error) => {
+                        self.error = Some(super::preview_error::Failure::output(error));
+                        self.error_details = false;
+                    }
                 }
             }
             Event::Loaded(id, generation, result) => {
@@ -221,7 +252,8 @@ impl Preview {
                     }
                     Err(error) => {
                         deck.pending = None;
-                        self.error = Some(error);
+                        self.error = Some(super::preview_error::Failure::track(error));
+                        self.error_details = false;
                     }
                 }
             }
@@ -268,7 +300,7 @@ impl Preview {
                     engine.master(value);
                 }
             }
-            Event::Zoom(id, span) => self.decks[id.index()].zoom = span.clamp(4.0, 64.0),
+            Event::Zoom(id, span) => self.decks[id.index()].zoom = span.clamp(1.0, 64.0),
             Event::ResetMixer => {
                 for id in [DeckId::A, DeckId::B] {
                     let _ = self.update(Event::Control(id, DeckControl::Gain(0.8)));
@@ -318,6 +350,54 @@ pub(super) fn beat_grid(
 mod tests {
     use super::*;
     use openbox_domain::Library;
+
+    #[test]
+    fn buffered_audio_snapshots_describe_the_same_display_position() {
+        let now = Instant::now();
+        let first = openbox_audio::DeckSnapshot {
+            position: 1.08,
+            duration: 10.0,
+            playing: true,
+            rate: 1.0,
+            ..Default::default()
+        };
+        let second = openbox_audio::DeckSnapshot {
+            position: 1.16,
+            ..first
+        };
+        let displayed = now + std::time::Duration::from_millis(100);
+        let a = position_at(first, now + std::time::Duration::from_millis(80), displayed);
+        let b = position_at(
+            second,
+            now + std::time::Duration::from_millis(160),
+            displayed,
+        );
+        assert!(
+            (a - b).abs() < 0.000001,
+            "New buffer snapped the waveform: {a} -> {b}"
+        );
+    }
+
+    #[test]
+    fn visual_position_advances_between_audio_snapshots_and_stops_at_pause_and_end() {
+        let at = Instant::now();
+        let mut snapshot = openbox_audio::DeckSnapshot {
+            position: 10.0,
+            duration: 12.0,
+            playing: true,
+            rate: 1.08,
+            ..Default::default()
+        };
+        let later = at + std::time::Duration::from_millis(50);
+        assert!((position_at(snapshot, at, later) - 10.054).abs() < 0.000001);
+        snapshot.playing = false;
+        assert_eq!(position_at(snapshot, at, later), 10.0);
+        snapshot.playing = true;
+        assert_eq!(
+            position_at(snapshot, at, at + std::time::Duration::from_secs(5)),
+            12.0
+        );
+    }
 
     #[test]
     fn loading_another_song_keeps_a_stale_decoder_result_out_of_the_deck() {

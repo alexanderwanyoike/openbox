@@ -13,7 +13,7 @@ USB playlists can be imported into the local library with copied audio. Library 
 
 A **selection** contains track identities in the currently filtered browser. Shift selects a range in displayed order; Ctrl toggles tracks; Select all selects the full filtered list. A **bulk edit** adds, removes or reorders that selection with one save. The desktop renders only rows around the visible viewport and keeps local/device navigation available together.
 
-A **preview deck** holds one decoded clip, its playback position, pitch and temporary cue point. An overview waveform covers the whole clip; a scrolling waveform follows playback and supports scrubbing. The **preview mixer** combines both decks with channel EQ/level, an equal-power crossfader and master level. Preview reads local or USB audio without changing library metadata, source files or device cues.
+A **preview deck** holds one decoded clip, its playback position, pitch and temporary cue point. A frequency-colored overview waveform covers the whole clip; a scrolling waveform follows playback and supports scrubbing. Preview envelope data has multiple resolutions, and waveform animation extrapolates between audio snapshots without rebuilding the browser. The **preview mixer** combines both decks with channel EQ/level, an equal-power crossfader and master level. Preview reads local or USB audio without changing library metadata, source files or device cues.
 
 **Export progress** reports completed transfer work, including encoder audio time and publication stages. It is monotonic and reaches 100% only after the committed device library is reopened.
 
