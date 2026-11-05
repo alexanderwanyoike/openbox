@@ -319,6 +319,12 @@ impl StagedTransfer {
             let reusable = sources
                 .iter()
                 .find(|link| link.path == path && link.source == source)
+                .filter(|link| {
+                    link.analysis_files.len() == 3
+                        && link.analysis_files.iter().all(|relative| {
+                            safe_path(root, relative).is_ok_and(|path| path.is_file())
+                        })
+                })
                 .and_then(|link| target.track(link.track_id).map(|track| (link, track)))
                 .filter(|(link, track)| {
                     storage::fingerprint(&track.path).is_ok_and(|hash| hash == link.audio)
@@ -349,6 +355,17 @@ impl StagedTransfer {
                 source,
                 audio: storage::fingerprint(&song.staged_audio)?,
                 track_id: next,
+                analysis_files: song
+                    .files
+                    .iter()
+                    .filter(|path| {
+                        matches!(
+                            Path::new(path).extension().and_then(|e| e.to_str()),
+                            Some("DAT" | "EXT" | "2EX")
+                        )
+                    })
+                    .cloned()
+                    .collect(),
             });
             mapping.insert(track.id, next);
             assigned_ids.push(next);
@@ -429,7 +446,7 @@ fn prepare_song(
     progress: &mut dyn FnMut(f32, ExportPhase),
 ) -> Result<PreparedSong, String> {
     let mut analyzed = source.clone();
-    if analyzed.details.analysis.is_none() {
+    if requires_analysis(&analyzed) {
         let result = openbox_analysis::analyze(&analyzed.path)?;
         if result.bpm.is_some() {
             analyzed.details.bpm = result.bpm;
@@ -475,7 +492,8 @@ fn prepare_song(
     let frames = rewrite::mp3_audio(&output)
         .map_err(|e| e.to_string())?
         .frames;
-    let [mut dat, ext, _] = generate::build_files(&backend, &usb_path, &measured, Some(frames));
+    let [mut dat, ext, two_ex] =
+        generate::build_files(&backend, &usb_path, &measured, Some(frames));
     if let Some(grid) = &track.details.analysis {
         *dat.find_mut(b"PQTZ")
             .ok_or("Generated analysis has no beat-grid section")? =
@@ -494,7 +512,7 @@ fn prepare_song(
     } else {
         None
     };
-    for (extension, analysis) in [("DAT", dat), ("EXT", ext)] {
+    for (extension, analysis) in [("DAT", dat), ("EXT", ext), ("2EX", two_ex)] {
         let path = format!("{directory}/ANLZ{index:04}.{extension}");
         storage::write_atomic(&safe_path(staging, &path)?, &analysis.to_bytes())?;
         files.push(path);
@@ -578,8 +596,12 @@ fn filename(title: &str) -> String {
 
 fn source_fingerprint(track: &openbox_domain::Track) -> Result<String, String> {
     let audio = storage::fingerprint(&track.path)?;
-    let metadata = serde_json::to_vec(&(&track.title, &track.artist, &track.details))
+    let mut metadata = serde_json::to_vec(&(&track.title, &track.artist, &track.details))
         .map_err(|e| e.to_string())?;
+    if requires_analysis(track) {
+        // An engine update must invalidate a cached export made from the same old library record.
+        metadata.extend_from_slice(openbox_analysis::VERSION.as_bytes());
+    }
     let artwork = track
         .details
         .artwork
@@ -591,6 +613,12 @@ fn source_fingerprint(track: &openbox_domain::Track) -> Result<String, String> {
         "{audio}:{}:{artwork}",
         storage::fingerprint_bytes(&metadata)
     ))
+}
+
+fn requires_analysis(track: &Track) -> bool {
+    track.details.analysis.as_ref().is_none_or(|grid| {
+        grid.version.starts_with("bliss-aubio-") && grid.version != openbox_analysis::VERSION
+    })
 }
 
 fn transcode(
