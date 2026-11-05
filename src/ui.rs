@@ -26,6 +26,8 @@ mod test_render;
 #[cfg(test)]
 mod tooltip_tests;
 pub mod updates;
+#[cfg(test)]
+mod usb_tests;
 mod view;
 mod waveform;
 

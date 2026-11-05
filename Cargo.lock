@@ -3505,6 +3505,7 @@ dependencies = [
  "openbox-library",
  "openbox-rekordbox",
  "openbox-storage",
+ "openbox-test-support",
  "openbox-updater",
  "rfd",
  "serde",
