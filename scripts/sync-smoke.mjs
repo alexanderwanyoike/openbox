@@ -27,7 +27,7 @@ const tracks = [[120, 660, 0.1], [126, 990, 0.23]].map(([bpm, frequency, offset]
   }
   const path = join(work, `deck-${n}.wav`);
   writeFileSync(path, pcm);
-  return { id: n + 1, path, title: `Sync ${String.fromCharCode(65 + n)}: ${bpm} BPM`, artist: 'Generated audio fixture', details: { bpm, key: '8A', duration_seconds: 90, analysis: { version: 'fixture', beats: Array.from({ length: 180 }, (_, i) => ({ time_seconds: offset + i * 60 / bpm, bpm, number: i % 4 + 1 })) } } };
+  return { id: n + 1, path, title: `Sync ${String.fromCharCode(65 + n)}: ${bpm} BPM`, artist: 'Generated audio fixture', details: { bpm: 120, key: '8A', duration_seconds: 90, analysis: { version: 'fixture', beats: Array.from({ length: 180 }, (_, i) => ({ time_seconds: offset + i * 60 / bpm, bpm, number: i % 4 + 1 })) } } };
 });
 writeFileSync(library, JSON.stringify({ tracks, playlists: [] }));
 const original = readFileSync(library);
@@ -80,6 +80,13 @@ try {
   await click(integrated ? 302 : 290, transportY);
   await delay(2000);
   await capture('sync-active');
+  const bpmGlyphs = left => execFileSync('convert', [join(screenshots, 'sync-active.png'),
+    '-crop', `85x24+${left}+${integrated ? 115 : 60}`, '-channel', 'RGB', '-separate', '+channel',
+    '-evaluate-sequence', 'max', '-threshold', '45%', '-trim', '+repage', '-depth', '8', 'gray:-']);
+  const digitsA = bpmGlyphs(435), digitsB = bpmGlyphs(integrated ? 1280 : 1283);
+  const difference = [...digitsA].filter((value, n) => value !== digitsB[n]).length / digitsA.length;
+  assert.ok(digitsA.length === digitsB.length && difference < 0.025,
+    `Synced decks show different BPM digits (${(difference * 100).toFixed(1)}% glyph mismatch)`);
   samples = Buffer.alloc(0);
   await delay(6000);
   const a = envelopes(660 * 126 / 120, samples);
