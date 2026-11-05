@@ -1,4 +1,5 @@
 use crate::{BeatGrid, Clip, SyncError};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeckId {
@@ -44,8 +45,9 @@ impl Band {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct DeckSnapshot {
+    pub sampled_at: Instant,
     pub position: f64,
     pub duration: f64,
     pub playing: bool,
@@ -58,6 +60,24 @@ pub struct DeckSnapshot {
     pub sync_phase: bool,
 }
 
+impl Default for DeckSnapshot {
+    fn default() -> Self {
+        Self {
+            sampled_at: Instant::now(),
+            position: 0.0,
+            duration: 0.0,
+            playing: false,
+            rate: 0.0,
+            peak: 0.0,
+            cue: 0.0,
+            pitch_rate: 0.0,
+            bpm: None,
+            sync_leader: None,
+            sync_phase: false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Snapshot {
     pub decks: [DeckSnapshot; 2],
@@ -68,6 +88,7 @@ pub struct Snapshot {
 struct Deck {
     grid: Option<BeatGrid>,
     sync_leader: Option<DeckId>,
+    sampled_at: Instant,
     sync_phase: bool,
     clip: Option<Clip>,
     cursor: f64,
@@ -88,6 +109,7 @@ impl Default for Deck {
         Self {
             grid: None,
             sync_leader: None,
+            sampled_at: Instant::now(),
             sync_phase: false,
             clip: None,
             cursor: 0.0,
@@ -133,6 +155,7 @@ impl Mixer {
             }
         }
         let deck = &mut self.decks[id.index()];
+        deck.sampled_at = Instant::now();
         deck.clip = Some(clip);
         deck.grid = None;
         deck.sync_leader = None;
@@ -153,6 +176,12 @@ impl Mixer {
             self.decks[id.index()].adjustment = 1.0;
         }
         let deck = &mut self.decks[id.index()];
+        if matches!(
+            control,
+            DeckControl::PlayPause | DeckControl::Seek(_) | DeckControl::Cue | DeckControl::SetCue
+        ) {
+            deck.sampled_at = Instant::now();
+        }
         match control {
             DeckControl::PlayPause if deck.clip.is_some() => {
                 if deck
@@ -264,6 +293,8 @@ impl Mixer {
         } else {
             target_time
         };
+        let sampled_at = source.sampled_at;
+
         self.decks[leader.index()].sync_leader = None;
         let target = &mut self.decks[follower.index()];
         target.sync_leader = Some(leader);
@@ -271,6 +302,9 @@ impl Mixer {
 
         target.rate = rate;
         target.adjustment = 1.0;
+        if beat_sync && phase_available {
+            target.sampled_at = sampled_at;
+        }
         target.cursor = position * f64::from(target.clip.as_ref().unwrap().sample_rate);
         target.low = [0.0; 2];
         target.upper = [0.0; 2];
@@ -323,6 +357,7 @@ impl Mixer {
             decks: std::array::from_fn(|i| {
                 let d = &self.decks[i];
                 DeckSnapshot {
+                    sampled_at: d.sampled_at,
                     position: d
                         .clip
                         .as_ref()
@@ -441,6 +476,14 @@ impl Mixer {
                 self.clipped |= value.abs() > 1.0;
                 self.peak = self.peak.max(value.abs().min(1.0));
                 *sample = value.clamp(-1.0, 1.0);
+            }
+        }
+        self.set_render_time(Instant::now());
+    }
+    pub(crate) fn set_render_time(&mut self, sampled_at: Instant) {
+        for deck in &mut self.decks {
+            if deck.playing {
+                deck.sampled_at = sampled_at;
             }
         }
     }
