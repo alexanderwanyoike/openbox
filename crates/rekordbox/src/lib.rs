@@ -1002,7 +1002,11 @@ mod tests {
         export(&library, &[a], &first).unwrap();
         std::fs::rename(first, &second).unwrap();
         let reopened = open(&second).unwrap();
-        assert!(reopened.library.tracks()[0].path.starts_with(second.canonicalize().unwrap()));
+        assert!(
+            reopened.library.tracks()[0]
+                .path
+                .starts_with(second.canonicalize().unwrap())
+        );
         assert!(reopened.library.tracks()[0].path.is_file());
         assert_eq!(reopened.library.playlists()[0].name, "Opening");
     }
