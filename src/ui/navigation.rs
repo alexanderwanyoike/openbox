@@ -179,7 +179,8 @@ impl App {
             row![
                 text_input("New name", &self.new_name)
                     .size(11)
-                    .padding(7)
+                    .padding(8)
+                    .style(super::view::input)
                     .width(Length::Fill)
                     .on_input(Message::NewName)
                     .on_submit(Message::CreatePlaylist),
@@ -203,7 +204,7 @@ impl App {
                 ))
                 .id("playlist-tree")
                 .height(Length::Fill),
-            container(create).padding([8, 12]),
+            container(create).padding([8, super::surfaces::INSET]),
             row![
                 icons::hint(
                     icons::action(
@@ -222,17 +223,13 @@ impl App {
                 Space::new().width(Length::Fill),
             ]
             .spacing(6)
-            .padding([0, 12]),
+            .padding([0, super::surfaces::INSET]),
             Space::new().height(12),
         ])
         .id("collection-panel")
         .width(212)
         .height(Length::Fill)
-        .style(move |_| {
-            let mut style = super::surfaces::card(colors);
-            style.border.width = 0.0;
-            style
-        })
+        .style(move |_| super::surfaces::workspace(colors))
         .into()
     }
 }

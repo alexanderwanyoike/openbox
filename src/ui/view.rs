@@ -1,4 +1,5 @@
 use super::icons::{self, Icon};
+use super::surfaces::{CONTROL_CORNER, CONTROL_HEIGHT, GAP, INSET};
 use super::*;
 use browser::ROW_HEIGHT;
 use iced::{
@@ -145,47 +146,69 @@ impl App {
             .into()
     }
 
+    fn split_browser(&self) -> bool {
+        self.browse_library && self.target == Target::Usb && self.selected_playlist.is_some()
+    }
+
     fn content(&self) -> Element<'static, Message> {
         let colors = self.preferences.palette();
         if self.selected_folder.is_some() && self.selected_playlist.is_none() {
             return self.folder_content();
         }
         let mut body = Column::new().spacing(0);
-        if self.target == Target::Usb && self.selected_playlist.is_some() {
-            body = body.push(
-                container(
-                    row![
-                        text("DEVICE PLAYLIST")
-                            .font(Font::MONOSPACE)
-                            .size(9)
-                            .color(colors.accent),
-                        Space::new().width(Length::Fill),
-                        action(
-                            if self.browse_library {
-                                "Hide collection"
-                            } else {
-                                "Show collection"
-                            },
-                            Message::BrowseLibrary,
-                            true
-                        )
-                        .style(quiet),
-                        text("Select tracks in the collection, then add them to the USB playlist.")
-                            .size(11)
-                            .color(colors.muted),
-                    ]
-                    .spacing(16)
-                    .align_y(Alignment::Center),
-                )
-                .padding([8, 14])
-                .style(move |_| panel(colors.panel)),
-            );
+        if self.selected_playlist.is_some() {
+            let mut tools = row![
+                text_input("Playlist name", &self.rename_name)
+                    .id("playlist-name")
+                    .size(12)
+                    .padding(8)
+                    .width(240)
+                    .style(input),
+                browser_action("Rename", Message::RenamePlaylist, !self.busy),
+                browser_action("Delete playlist", Message::DeletePlaylist, !self.busy).style(quiet),
+                Space::new().width(Length::Fill),
+            ]
+            .spacing(GAP)
+            .align_y(Alignment::Center);
+            if self.target == Target::Usb {
+                tools = tools.push(
+                    browser_action(
+                        if self.browse_library {
+                            "Hide collection"
+                        } else {
+                            "Show collection"
+                        },
+                        Message::BrowseLibrary,
+                        true,
+                    )
+                    .style(quiet),
+                );
+            }
+            body = body
+                .push(container(tools).padding([12, INSET]))
+                .push(horizontal(1).style(move |_| iced::widget::rule::Style {
+                    color: Color {
+                        a: 0.5,
+                        ..colors.line
+                    },
+                    snap: true,
+                    radius: 0.0.into(),
+                    fill_mode: iced::widget::rule::FillMode::Full,
+                }));
         }
-        if self.browse_library && self.target == Target::Usb && self.selected_playlist.is_some() {
+        if self.split_browser() {
             body = body.push(
-                row![self.track_pane(true), self.track_pane(false)]
-                    .spacing(1)
-                    .height(Length::Fill),
+                row![
+                    self.track_pane(true),
+                    container(Space::new().height(Length::Fill))
+                        .width(1)
+                        .style(move |_| panel(Color {
+                            a: 0.5,
+                            ..colors.line
+                        })),
+                    self.track_pane(false),
+                ]
+                .height(Length::Fill),
             );
         } else {
             body = body.push(self.track_pane(false));
@@ -196,6 +219,8 @@ impl App {
         container(body)
             .width(Length::Fill)
             .height(Length::Fill)
+            .style(move |_| super::surfaces::workspace(colors))
+            .clip(true)
             .into()
     }
 
@@ -220,66 +245,40 @@ impl App {
         let count = library.map_or(0, |l| browser.visible(l, playlist).len());
         let heading = row![
             text(title).size(14).width(Length::Fill),
-            text(format!("{count} tracks")).size(11).color(colors.muted),
+            text(track_count(count)).size(11).color(colors.muted),
         ]
         .spacing(12)
         .align_y(Alignment::Center);
         let query = text_input(
-            "Search title, artist, album, genre, BPM, key...",
+            if playlist.is_some() {
+                "Search playlist..."
+            } else {
+                "Search title, artist, album, genre, BPM, key..."
+            },
             &browser.query,
         )
         .size(12)
         .padding(8)
+        .style(input)
         .on_input(if source {
             Message::SourceSearch
         } else {
             Message::Search
         });
-        let mut tools = row![
+        let tools = row![
             query.width(Length::Fill),
-            action("Select all", Message::SelectAll(source), count > 0).style(quiet),
+            browser_action("Select all", Message::SelectAll(source), count > 0).style(quiet),
         ]
-        .spacing(6)
+        .spacing(GAP)
         .align_y(Alignment::Center);
-        if !source && playlist.is_some() {
-            tools = row![
-                text_input("Playlist name", &self.rename_name)
-                    .id("playlist-name")
-                    .size(12)
-                    .padding(8)
-                    .width(180)
-                    .on_input(Message::RenameName)
-                    .on_submit(Message::RenamePlaylist),
-                action("Rename", Message::RenamePlaylist, !self.busy),
-                action("Delete playlist", Message::DeletePlaylist, !self.busy).style(quiet),
-                Space::new().width(Length::Fill),
-            ]
-            .spacing(6)
-            .align_y(Alignment::Center);
-        }
-        let mut controls = column![heading, tools].spacing(10);
-        if !source && playlist.is_some() {
-            controls = controls.push(
-                row![
-                    text_input("Search playlist...", &browser.query)
-                        .size(12)
-                        .padding(8)
-                        .on_input(Message::Search)
-                        .width(Length::Fill),
-                    action("Select all", Message::SelectAll(false), count > 0).style(quiet),
-                ]
-                .spacing(6),
-            );
-        }
+        let controls = column![heading, tools].spacing(GAP);
         container(column![
-            container(controls).padding(14),
+            container(controls).padding(INSET),
             self.track_table(source),
             self.selection_bar(source),
         ])
-        .padding(1)
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(move |_| super::surfaces::card(colors))
         .into()
     }
 
@@ -295,8 +294,7 @@ impl App {
         let visible = library
             .map(|l| browser.visible(l, playlist))
             .unwrap_or_default();
-        let split =
-            self.browse_library && self.target == Target::Usb && self.selected_playlist.is_some();
+        let split = self.split_browser();
         let mut headings = Row::new().spacing(0).align_y(Alignment::Center);
         let all_selected =
             !visible.is_empty() && visible.iter().all(|t| browser.selection.contains(t.id));
@@ -355,7 +353,7 @@ impl App {
                     ]
                     .spacing(10),
                 )
-                .padding(24),
+                .padding(INSET),
             );
         } else {
             let window = browser.window(visible.len());
@@ -429,7 +427,7 @@ impl App {
                     }
                 }))
                 .width(32)
-                .padding([0, 10]);
+                .padding([0, INSET]);
                 let line = row![
                     check,
                     button(cells)
@@ -494,21 +492,24 @@ impl App {
                 .size(11)
                 .color(if enabled { colors.accent } else { colors.muted })
                 .width(84),
-            action("Clear", Message::ClearSelection(source), count > 0).style(quiet),
+            browser_action("Clear", Message::ClearSelection(source), count > 0).style(quiet),
         ]
         .spacing(6)
         .align_y(Alignment::Center);
         if source {
             actions = actions
                 .push(Space::new().width(Length::Fill))
-                .push(action(
+                .push(browser_action(
                     "Replace",
                     Message::ReplaceSource,
                     selection.single().is_some()
                         && self.tracks.selection.single().is_some()
                         && !self.busy,
                 ))
-                .push(action("Add to USB playlist →", Message::AddSource, enabled).style(primary));
+                .push(
+                    browser_action("Add to USB playlist →", Message::AddSource, enabled)
+                        .style(primary),
+                );
         } else {
             let choices: Vec<_> = self
                 .collection()
@@ -527,12 +528,13 @@ impl App {
                     pick_list(choices, None::<PlaylistChoice>, Message::AddTo)
                         .placeholder("Add to playlist...")
                         .text_size(12)
-                        .padding(6)
+                        .padding(8)
                         .width(180),
                 );
             } else {
                 actions = actions.push(
-                    action("Add to playlist...", Message::SelectAll(false), false).width(180),
+                    browser_action("Add to playlist...", Message::SelectAll(false), false)
+                        .width(180),
                 );
             }
             if self.selected_playlist.is_some() {
@@ -540,17 +542,21 @@ impl App {
                     && self.tracks.sort == SortColumn::Order
                     && self.tracks.query.is_empty();
                 actions = actions
-                    .push(action("↑", Message::MoveTrack(-1), can_order))
-                    .push(action("↓", Message::MoveTrack(1), can_order))
-                    .push(action("Remove", Message::RemoveFromPlaylist, enabled));
+                    .push(browser_action("↑", Message::MoveTrack(-1), can_order))
+                    .push(browser_action("↓", Message::MoveTrack(1), can_order))
+                    .push(browser_action(
+                        "Remove",
+                        Message::RemoveFromPlaylist,
+                        enabled,
+                    ));
             } else if self.target == Target::Library {
                 actions = actions
-                    .push(action(
+                    .push(browser_action(
                         "+ New playlist",
                         Message::CreateFromSelection,
                         enabled,
                     ))
-                    .push(action("Remove", Message::RemoveTrack, enabled).style(quiet));
+                    .push(browser_action("Remove", Message::RemoveTrack, enabled).style(quiet));
             }
             if self.target == Target::Library
                 && enabled
@@ -570,17 +576,18 @@ impl App {
                         pick_list(choices, None::<PlaylistChoice>, Message::SendTrackToUsb)
                             .placeholder("Send to USB playlist...")
                             .text_size(12)
-                            .padding(6)
+                            .padding(8)
                             .width(180),
                     );
                 }
             }
             actions = actions.push(Space::new().width(Length::Fill));
         }
+        let split = self.split_browser();
         container(actions)
-            .padding([10, 12])
+            .padding([8, INSET])
             .height(48)
-            .style(move |_| panel(colors.raised))
+            .style(move |_| super::surfaces::footer(colors, source, split))
             .into()
     }
 
@@ -722,11 +729,35 @@ pub(super) fn action(
         .on_press_maybe(enabled.then_some(message))
 }
 
+fn browser_action(
+    label: &str,
+    message: Message,
+    enabled: bool,
+) -> iced::widget::Button<'_, Message> {
+    action(label, message, enabled).height(CONTROL_HEIGHT)
+}
+
 pub(super) fn panel(color: Color) -> container::Style {
     container::Style {
         background: Some(color.into()),
         ..Default::default()
     }
+}
+
+pub(super) fn track_count(count: usize) -> String {
+    format!("{count} {}", if count == 1 { "track" } else { "tracks" })
+}
+
+pub(super) fn input(theme: &Theme, status: text_input::Status) -> text_input::Style {
+    let colors = super::appearance::palette(theme);
+    let mut style = text_input::default(theme, status);
+    style.border.radius = CONTROL_CORNER.into();
+    style.border.color = match status {
+        text_input::Status::Focused { .. } => colors.accent,
+        text_input::Status::Hovered => colors.muted,
+        _ => colors.line,
+    };
+    style
 }
 
 pub(super) fn secondary(theme: &Theme, status: button::Status) -> button::Style {
@@ -751,7 +782,7 @@ pub(super) fn secondary(theme: &Theme, status: button::Status) -> button::Style 
                 ..colors.line
             },
             width: 1.0,
-            radius: 7.0.into(),
+            radius: CONTROL_CORNER.into(),
         },
         ..Default::default()
     }
@@ -778,6 +809,10 @@ pub(super) fn quiet(theme: &Theme, status: button::Status) -> button::Style {
         },
         background: matches!(status, button::Status::Hovered | button::Status::Pressed)
             .then_some(colors.raised.into()),
+        border: Border {
+            radius: CONTROL_CORNER.into(),
+            ..Default::default()
+        },
         ..Default::default()
     }
 }
@@ -794,7 +829,7 @@ pub(super) fn nav(theme: &Theme, status: button::Status, selected: bool) -> butt
             None
         },
         border: Border {
-            radius: 8.0.into(),
+            radius: CONTROL_CORNER.into(),
             ..Default::default()
         },
         ..Default::default()
