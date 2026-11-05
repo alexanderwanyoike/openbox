@@ -1,8 +1,30 @@
+pub mod appearance;
 mod browser;
+mod chrome;
+mod faders;
+mod icons;
 mod knob;
+mod navigation;
+mod palette;
+#[cfg(test)]
+mod player_tests;
 mod players;
 mod preview;
+mod preview_error;
+#[cfg(test)]
+mod rendering;
+mod ruler;
 mod selection;
+mod settings;
+#[cfg(test)]
+mod shell_tests;
+mod surfaces;
+#[cfg(test)]
+mod table_tests;
+#[cfg(test)]
+mod test_render;
+#[cfg(test)]
+mod tooltip_tests;
 pub mod updates;
 mod view;
 mod waveform;
@@ -40,6 +62,7 @@ impl fmt::Display for PlaylistChoice {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    Window(chrome::WindowAction),
     Switch(Target),
     SelectPlaylist(Option<u64>),
     OpenPlaylist(Target, u64),
@@ -92,6 +115,13 @@ pub enum Message {
     UndoUsb,
     Tick,
     Preview(preview::Event),
+    OpenSettings,
+    CloseSettings,
+    Mode(appearance::Mode),
+    Material(appearance::Material),
+    Accent(appearance::Accent),
+    WaveformTheme(appearance::WaveformTheme),
+    ResetAppearance,
     Updates(updates::Event),
 }
 
@@ -128,13 +158,26 @@ pub struct App {
     import_updates: Option<Arc<Mutex<import::ImportProgress>>>,
     import_progress: Option<import::ImportProgress>,
     analyzing: bool,
+    browser_revision: u64,
     preview: preview::Preview,
+    preferences: appearance::Preferences,
+    settings_path: PathBuf,
+    library_name: String,
+    settings_visible: bool,
     updates: updates::State,
     update_progress: updates::Progress,
 }
 
 impl App {
     pub fn load(library_path: PathBuf, usb_root: Option<PathBuf>) -> Result<Self, String> {
+        let library_name = library_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Library")
+            .to_owned();
+        let settings_path = library_path.with_extension("settings.json");
+        let preferences = appearance::Preferences::load(&settings_path);
+        let settings_error = preferences.as_ref().err().cloned();
         let mut workspace = Workspace::load(library_path)?;
         if let Some(root) = &usb_root
             && root.join("PIONEER/rekordbox/export.pdb").exists()
@@ -160,14 +203,21 @@ impl App {
             undo_usb: None,
             pending_undo: None,
             deletion: None,
-            status: "Ready. Add music or select a playlist.".into(),
-            error: false,
+            status: settings_error
+                .clone()
+                .unwrap_or_else(|| "Ready. Add music or select a playlist.".into()),
+            error: settings_error.is_some(),
             export_progress: None,
             progress_updates: None,
             import_updates: None,
             import_progress: None,
             analyzing: false,
+            browser_revision: 0,
             preview: preview::Preview::default(),
+            preferences: preferences.unwrap_or_default(),
+            settings_path,
+            library_name,
+            settings_visible: false,
             updates: updates::State::default(),
             update_progress: Arc::new(Mutex::new((0, None))),
         })
@@ -183,8 +233,51 @@ impl App {
         {
             return Task::none();
         }
+        if !(matches!(
+            message,
+            Message::Tick
+                | Message::Preview(_)
+                | Message::Updates(_)
+                | Message::Window(_)
+                | Message::OpenSettings
+                | Message::CloseSettings
+        ) || self.settings_visible && matches!(message, Message::Keyboard(_)))
+        {
+            self.browser_revision = self.browser_revision.wrapping_add(1);
+        }
         match message {
             Message::Updates(event) => return self.update_application(event),
+            Message::Window(action) => return chrome::window_action(action),
+            Message::OpenSettings => self.settings_visible = true,
+            Message::CloseSettings => return self.close_settings(),
+            Message::Mode(mode) => self.set_preferences(appearance::Preferences {
+                mode,
+                ..self.preferences
+            }),
+            Message::Material(material) => self.set_preferences(appearance::Preferences {
+                material,
+                ..self.preferences
+            }),
+            Message::Accent(accent) => self.set_preferences(appearance::Preferences {
+                accent,
+                ..self.preferences
+            }),
+            Message::WaveformTheme(theme) => self.set_preferences(appearance::Preferences {
+                waveform_theme: theme,
+                ..self.preferences
+            }),
+            Message::ResetAppearance => self.set_preferences(appearance::Preferences::default()),
+            Message::Keyboard(event) if self.settings_visible => {
+                if matches!(
+                    event,
+                    keyboard::Event::KeyPressed {
+                        key: keyboard::Key::Named(keyboard::key::Named::Escape),
+                        ..
+                    }
+                ) {
+                    return self.close_settings();
+                }
+            }
             Message::Tick => {
                 self.preview.tick();
                 if let Some(updates) = &self.progress_updates {
@@ -201,7 +294,6 @@ impl App {
             }
             Message::Preview(event) => {
                 let task = self.preview.update(event).map(Message::Preview);
-                self.refresh_preview_metadata();
                 if let Some(error) = &self.preview.sync_error {
                     self.notice(error.clone(), true);
                 }
@@ -707,6 +799,25 @@ impl App {
         Task::none()
     }
 
+    fn close_settings(&mut self) -> Task<Message> {
+        self.settings_visible = false;
+        Task::none()
+    }
+
+    fn set_preferences(&mut self, preferences: appearance::Preferences) {
+        match preferences.save(&self.settings_path) {
+            Ok(()) => {
+                self.preferences = preferences;
+                self.status = "Appearance saved.".into();
+                self.error = false;
+            }
+            Err(error) => {
+                self.status = error;
+                self.error = true;
+            }
+        }
+    }
+
     pub fn subscription(&self) -> Subscription<Message> {
         let keyboard = event::listen_with(|event, status, _| match event {
             Event::Keyboard(event @ keyboard::Event::ModifiersChanged(_)) => {
@@ -737,14 +848,9 @@ impl App {
             || audio_live
             || self.updates.locked()
         {
-            let interval = if audio_live && self.preview.visible {
-                33
-            } else {
-                80
-            };
             Subscription::batch([
                 keyboard,
-                iced::time::every(Duration::from_millis(interval)).map(|_| Message::Tick),
+                iced::time::every(Duration::from_millis(80)).map(|_| Message::Tick),
             ])
         } else {
             keyboard
@@ -1101,6 +1207,257 @@ async fn background<T: Send + 'static>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "manual full-window paint timing harness"]
+    fn profile_playback_paint() {
+        use iced_graphics::core::Renderer as _;
+        use iced_runtime::user_interface::{Cache, UserInterface};
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.preview.visible = true;
+        let clip = openbox_audio::Clip::from_pcm(vec![10000; 44100 * 2 * 60], 44100).unwrap();
+        for deck in &mut app.preview.decks {
+            deck.clip = Some(clip.clone());
+        }
+        let mut renderer = crate::ui::rendering::new_renderer();
+        let bounds = iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::new(1440.0, 900.0));
+        let viewport = iced_graphics::Viewport::with_physical_size(iced::Size::new(1440, 900), 1.0);
+        let mut pixels = tiny_skia::Pixmap::new(1440, 900).unwrap();
+        let mut mask = tiny_skia::Mask::new(1440, 900).unwrap();
+        let mut cache = Cache::new();
+        let mut previous: Vec<iced_tiny_skia::Layer> = Vec::new();
+        for n in 0..20 {
+            for deck in &mut app.preview.snapshot.decks {
+                deck.position = 20.0 + n as f64 / 60.0;
+                deck.duration = 60.0;
+                deck.rate = 1.0;
+            }
+            let start = std::time::Instant::now();
+            let mut ui = UserInterface::build(app.view(), bounds.size(), cache, &mut renderer);
+            renderer.reset(bounds);
+            ui.draw(
+                &mut renderer,
+                &app.theme(),
+                &iced_graphics::core::renderer::Style::default(),
+                iced::mouse::Cursor::Unavailable,
+            );
+            let layers = crate::ui::rendering::backend(&mut renderer)
+                .layers()
+                .to_vec();
+            let damage: Vec<_> = if previous.is_empty() {
+                vec![bounds]
+            } else {
+                std::iter::zip(&previous, &layers)
+                    .flat_map(|(before, after)| iced_tiny_skia::Layer::damage(before, after))
+                    .collect()
+            };
+            let largest = damage
+                .iter()
+                .max_by(|a, b| (a.width * a.height).total_cmp(&(b.width * b.height)));
+            println!(
+                "frame {n}: {} damage regions; largest {largest:?}",
+                damage.len()
+            );
+            let damage = iced_graphics::damage::group(damage, bounds);
+            crate::ui::rendering::backend(&mut renderer).draw(
+                &mut pixels.as_mut(),
+                &mut mask,
+                &viewport,
+                &damage,
+                app.theme().palette().background,
+            );
+            println!("paint {:.2}ms", start.elapsed().as_secs_f64() * 1000.0);
+            cache = ui.into_cache();
+            previous = layers;
+        }
+    }
+
+    #[test]
+    fn the_decks_and_mixer_have_separate_inset_panels() {
+        use iced_graphics::core::{
+            Rectangle,
+            widget::{Id, Operation},
+        };
+        use iced_runtime::user_interface::{Cache, UserInterface};
+        struct Panels(Vec<(Id, Rectangle)>);
+        impl Operation for Panels {
+            fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+                children(self);
+            }
+            fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
+                if let Some(id) = id {
+                    self.0.push((id.clone(), bounds));
+                }
+            }
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.preview.visible = true;
+        let mut renderer = crate::ui::rendering::new_renderer();
+        let mut ui = UserInterface::build(
+            app.view(),
+            iced::Size::new(1440.0, 900.0),
+            Cache::new(),
+            &mut renderer,
+        );
+        let mut panels = Panels(Vec::new());
+        ui.operate(&renderer, &mut panels);
+        let bounds = |name| {
+            panels
+                .0
+                .iter()
+                .find(|(id, _)| *id == Id::new(name))
+                .map(|(_, bounds)| *bounds)
+                .expect("Missing framed panel")
+        };
+        let a = bounds("deck-a-panel");
+        let mixer = bounds("mixer-panel");
+        let b = bounds("deck-b-panel");
+        assert!(a.x >= 8.0 && a.y >= 58.0);
+        assert!(mixer.x - (a.x + a.width) >= 8.0);
+        assert!(b.x - (mixer.x + mixer.width) >= 8.0);
+    }
+
+    #[test]
+    fn appearance_choices_survive_restart_without_changing_music_or_playback() {
+        use appearance::{Accent, Material, Mode, WaveformTheme};
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("library.json");
+        std::fs::write(&path, r#"{"tracks":[],"playlists":[]}"#).unwrap();
+        let original = std::fs::read(&path).unwrap();
+        let mut app = App::load(path.clone(), None).unwrap();
+        app.preview.snapshot.decks[0].position = 37.5;
+        app.preview.snapshot.decks[0].playing = true;
+        let _ = app.update(Message::OpenSettings);
+        let _ = app.update(Message::Mode(Mode::Light));
+        let _ = app.update(Message::Material(Material::Slate));
+        let _ = app.update(Message::Accent(Accent::Emerald));
+        let _ = app.update(Message::WaveformTheme(WaveformTheme::Spectrum));
+        assert_eq!(app.preview.snapshot.decks[0].position, 37.5);
+        assert!(app.preview.snapshot.decks[0].playing);
+        let _ = app.update(Message::CloseSettings);
+        let restored = App::load(path.clone(), None).unwrap();
+        assert_eq!(restored.preferences.mode, Mode::Light);
+        assert_eq!(restored.preferences.material, Material::Slate);
+        assert_eq!(restored.preferences.accent, Accent::Emerald);
+        assert_eq!(restored.preferences.waveform_theme, WaveformTheme::Spectrum);
+        assert_eq!(std::fs::read(path).unwrap(), original);
+    }
+
+    #[test]
+    fn appearance_changes_invalidate_the_cached_browser() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        assert_eq!(appearance::WaveformTheme::ALL.len(), 10);
+        let revision = app.browser_revision;
+        let _ = app.update(Message::Mode(appearance::Mode::Light));
+        let _ = app.update(Message::Accent(appearance::Accent::Violet));
+        assert_eq!(
+            app.theme().palette().background,
+            app.preferences.palette().bg
+        );
+        assert_ne!(app.browser_revision, revision);
+    }
+
+    #[test]
+    fn the_library_keeps_a_visible_viewport_when_the_players_are_toggled() {
+        use iced_graphics::core::{
+            Rectangle, Vector,
+            widget::{Id, Operation, operation::Scrollable},
+        };
+        use iced_runtime::user_interface::{Cache, UserInterface};
+        struct Viewport(Option<Rectangle>);
+        impl Operation for Viewport {
+            fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+                children(self);
+            }
+            fn scrollable(
+                &mut self,
+                id: Option<&Id>,
+                bounds: Rectangle,
+                _: Rectangle,
+                _: Vector,
+                _: &mut dyn Scrollable,
+            ) {
+                if id == Some(&Id::new("main-tracks")) {
+                    self.0 = Some(bounds);
+                }
+            }
+        }
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        app.workspace
+            .library
+            .import("track.wav".into(), "Visible track".into(), "Artist".into());
+        let mut renderer = crate::ui::rendering::new_renderer();
+        let mut cache = Cache::new();
+        for visible in [false, true, false] {
+            app.preview.visible = visible;
+            let mut ui = UserInterface::build(
+                app.view(),
+                iced::Size::new(1440.0, 900.0),
+                cache,
+                &mut renderer,
+            );
+            let mut query = Viewport(None);
+            ui.operate(&renderer, &mut query);
+            assert!(query.0.unwrap().height > 150.0);
+            cache = ui.into_cache();
+        }
+    }
+
+    #[test]
+    fn playback_and_mixer_input_reuse_the_browser_until_its_content_changes() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        let version = app.browser_revision;
+        let _ = app.update(Message::Tick);
+        let _ = app.update(Message::Preview(preview::Event::Control(
+            openbox_audio::DeckId::A,
+            openbox_audio::DeckControl::Fader(0.5),
+        )));
+        assert_eq!(app.browser_revision, version);
+        let _ = app.update(Message::Search("house".into()));
+        assert_ne!(app.browser_revision, version);
+    }
+
+    #[test]
+    #[ignore = "manual library view timing harness"]
+    fn profile_library_view() {
+        use std::{hint::black_box, time::Instant};
+        let temp = tempfile::tempdir().unwrap();
+        let mut app = App::load(temp.path().join("library.json"), None).unwrap();
+        for n in 0..5000 {
+            app.workspace.library.import(
+                format!("{n}.wav").into(),
+                format!("House {n}"),
+                "Artist".into(),
+            );
+        }
+        let _ = app.update(Message::Search("house".into()));
+        let _ = app.update(Message::Sort(false, SortColumn::Title));
+        let mut times = Vec::new();
+        let mut renderer = crate::ui::rendering::new_renderer();
+        let mut cache = iced_runtime::user_interface::Cache::new();
+        for n in 0..240 {
+            let start = Instant::now();
+            let _ = app.update(Message::Preview(preview::Event::Master(n as f32 / 240.0)));
+            let ui = iced_runtime::user_interface::UserInterface::build(
+                app.view(),
+                iced::Size::new(1440.0, 900.0),
+                cache,
+                &mut renderer,
+            );
+            cache = black_box(ui.into_cache());
+            times.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        times.sort_by(f64::total_cmp);
+        println!(
+            "5000 sorted/filtered tracks: view p50={:.3}ms p95={:.3}ms",
+            times[120], times[228]
+        );
+    }
 
     #[test]
     fn completed_reanalysis_refreshes_loaded_deck_metadata_without_moving_playback() {

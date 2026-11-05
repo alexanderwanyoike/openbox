@@ -1,4 +1,5 @@
 use crate::DecodeError;
+use crate::waveform::Waveform;
 use std::{
     io::Read,
     path::Path,
@@ -7,19 +8,6 @@ use std::{
 };
 
 const PREVIEW_RATE: u32 = 44100;
-
-#[derive(Debug, Clone, Copy)]
-pub struct WavePeak {
-    pub peak: f32,
-    pub rms: f32,
-}
-
-#[derive(Debug, Clone)]
-pub struct Waveform {
-    pub peaks: Arc<[WavePeak]>,
-    pub duration: f64,
-    pub bins_per_second: f64,
-}
 
 #[derive(Debug, Clone)]
 pub struct Clip {
@@ -33,28 +21,7 @@ impl Clip {
         if sample_rate == 0 || samples.is_empty() || !samples.len().is_multiple_of(2) {
             return Err("Preview audio must contain stereo frames at a valid sample rate".into());
         }
-        let hop = (sample_rate / 100).max(1) as usize;
-        let peaks: Vec<_> = samples
-            .chunks(hop * 2)
-            .map(|chunk| {
-                let mut peak = 0.0_f32;
-                let mut square = 0.0_f64;
-                for &sample in chunk {
-                    let value = f32::from(sample) / 32768.0;
-                    peak = peak.max(value.abs());
-                    square += f64::from(value * value);
-                }
-                WavePeak {
-                    peak,
-                    rms: (square / chunk.len() as f64).sqrt() as f32,
-                }
-            })
-            .collect();
-        let waveform = Waveform {
-            peaks: peaks.into(),
-            duration: samples.len() as f64 / 2.0 / f64::from(sample_rate),
-            bins_per_second: f64::from(sample_rate) / hop as f64,
-        };
+        let waveform = Waveform::from_pcm(&samples, sample_rate);
         Ok(Self {
             samples: samples.into(),
             sample_rate,

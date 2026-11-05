@@ -48,7 +48,7 @@ app.stderr.on('data', data => { logs += data; });
 const x = (...args) => execFileSync('xdotool', args, { encoding: 'utf8' }).trim();
 let window;
 const capture = name => execFileSync('import', ['-window', window, join(screenshots, `${name}.png`)]);
-async function click(px, py) { x('mousemove', '--window', window, String(px), String(py)); await delay(100); x('click', '1'); await delay(500); }
+async function click(px, py) { x('mousemove', '--window', window, String(px), String(py)); await delay(220); x('click', '1'); await delay(500); }
 async function drag(from, to, y) {
   x('mousemove', '--window', window, String(from), String(y)); await delay(100);
   x('mousedown', '1'); await delay(150);
@@ -62,7 +62,7 @@ async function moveFader(px, from, to) {
   x('mouseup', '1'); await delay(300);
 }
 async function resetFader(px) {
-  x('mousemove', '--window', window, String(px), '290');
+  x('mousemove', '--window', window, String(px), '335');
   x('keydown', 'ctrl'); x('click', '1'); x('keyup', 'ctrl'); await delay(300);
 }
 async function waitFor(predicate, message, timeout = 30000) {
@@ -94,90 +94,111 @@ async function signal() {
   return { a: tones[0], seek: tones[1], b: tones[2], pitch: tones[3], rms: Math.sqrt(square / frames) };
 }
 
+async function checkWaveformMotion() {
+  const geometry = x('getwindowgeometry', '--shell', window);
+  const left = Number(geometry.match(/^X=(\d+)/m)[1]);
+  const top = Number(geometry.match(/^Y=(\d+)/m)[1]);
+  const bytes = execFileSync('ffmpeg', ['-v', 'error', '-f', 'x11grab', '-draw_mouse', '0', '-framerate', '60',
+    '-video_size', '1440x900', '-i', `${process.env.DISPLAY}+${left},${top}`, '-t', '3',
+    '-vf', 'crop=240:100:330:265', '-pix_fmt', 'gray', '-f', 'rawvideo', 'pipe:1'], { maxBuffer: 10 * 1024 * 1024 });
+  const size = 240 * 100;
+  const frames = Math.floor(bytes.length / size);
+  let changed = 0;
+  for (let n = 1; n < frames; n++) {
+    if (!bytes.subarray(n * size, (n + 1) * size).equals(bytes.subarray((n - 1) * size, n * size))) changed++;
+  }
+  const fps = 60 * changed / (frames - 1);
+  console.log(`Waveform motion: ${fps.toFixed(1)} distinct frames/sec (${changed}/${frames - 1} captured transitions)`);
+  assert.ok(fps >= 45, `Waveform movement updates at only ${fps.toFixed(1)} frames/sec`);
+}
+
 try {
-  await waitFor(() => { window = x('search', '--onlyvisible', '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Iced window did not open');
+  await waitFor(() => { window = x('search', '--onlyvisible', '--pid', String(app.pid), '--name', '^Openbox$').split('\n')[0]; return Boolean(window); }, 'Iced window did not open');
+  x('windowraise', window);
   x('windowfocus', window);
   await delay(500);
-  await click(400, 187);
-  await click(430, 24);
-  await click(550, 81);
+  await click(400, 234);
+  await click(1260, 72);
+  await delay(1200);
+  await click(550, 134);
   await delay(1200);
   capture('players-loaded-a');
-  await click(400, 592);
-  await click(1390, 81);
+  await click(400, 647);
+  await click(1390, 134);
   await delay(1200);
   capture('players-loaded-b');
-  await click(45, 381);
-  await click(890, 381);
+  await click(45, 420);
+  await click(890, 420);
   let audio = await signal();
   assert.ok(audio.a > 0.02 && audio.b > 0.02, `Both decks were not audible: ${JSON.stringify(audio)}\n${logs}`);
-  await moveFader(650, 248, 345);
+  if (process.env.OPENBOX_CHECK_MOTION) await checkWaveformMotion();
+  await moveFader(650, 303, 398);
   capture('players-channel-a-muted');
   audio = await signal();
   assert.ok(audio.a < 0.004 && audio.b > 0.02, `Channel A fader did not isolate A: ${JSON.stringify(audio)}`);
   await resetFader(650);
   audio = await signal();
   assert.ok(audio.a > 0.02 && audio.b > 0.02, `Channel A fader reset failed: ${JSON.stringify(audio)}`);
-  await moveFader(773, 248, 345);
+  await moveFader(773, 303, 398);
   audio = await signal();
   assert.ok(audio.b < 0.004 && audio.a > 0.02, `Channel B fader did not isolate B: ${JSON.stringify(audio)}`);
   await resetFader(773);
-  await drag(621, 605, 404);
+  await drag(621, 605, 459);
   audio = await signal();
   assert.ok(audio.a > 0.04 && audio.b < 0.004, `Crossfader A failed: ${JSON.stringify(audio)}`);
-  await drag(819, 835, 404);
+  await drag(819, 835, 459);
   audio = await signal();
   assert.ok(audio.b > 0.04 && audio.a < 0.004, `Crossfader B failed: ${JSON.stringify(audio)}`);
-  await click(720, 404);
-  await drag(646, 630, 374);
+  await click(720, 459);
+  await drag(646, 630, 429);
   capture('players-master-muted');
   audio = await signal();
   assert.ok(audio.rms < 0.0005, `Master mute failed: ${JSON.stringify(audio)}`);
-  await click(815, 69);
-  x('mousemove', '--window', window, '649', '111'); await delay(100);
+  await click(822, 122);
+  x('mousemove', '--window', window, '649', '166'); await delay(100);
   x('mousedown', '1'); await delay(150);
-  x('mousemove', '--window', window, '649', '201'); await delay(150);
+  x('mousemove', '--window', window, '649', '256'); await delay(150);
   x('mouseup', '1'); await delay(300);
   audio = await signal();
   capture('players-trim-muted');
   assert.ok(audio.a < 0.004 && audio.b > 0.02, `Channel A trim failed: ${JSON.stringify(audio)}`);
-  x('mousemove', '--window', window, '649', '111'); await delay(100);
+  x('mousemove', '--window', window, '649', '166'); await delay(100);
   x('click', '3'); await delay(300);
   audio = await signal();
   assert.ok(audio.a > 0.02 && audio.b > 0.02, `Trim knob reset failed: ${JSON.stringify(audio)}`);
-  await click(815, 69);
-  await drag(621, 605, 404);
-  await click(485, 410);
+  await click(822, 122);
+  await drag(621, 605, 459);
+  await drag(265, 510, 452);
   audio = await signal();
   assert.ok(audio.pitch > 0.04 && audio.a < 0.004, `Pitch did not change playback speed: ${JSON.stringify(audio)}`);
-  await click(571, 410);
-  await click(438, 145);
+  await click(563, 452);
+  await click(438, 198);
   audio = await signal();
   assert.ok(audio.seek > 0.04 && audio.a < 0.004, `Overview seeking did not reach the second part of the song: ${JSON.stringify(audio)}`);
-  await drag(300, 230, 222);
+  await drag(300, 230, 267);
   capture('players-waveform-seek');
-  await click(45, 381);
+  await click(45, 420);
   audio = await signal();
   assert.ok(audio.rms < 0.0005, `Pause did not silence deck A: ${JSON.stringify(audio)}`);
-  await click(160, 145);
-  await click(165, 381);
-  await click(438, 145);
-  await click(112, 381);
-  await click(45, 381);
+  await click(160, 198);
+  await click(165, 420);
+  await click(438, 198);
+  await click(112, 420);
+  await click(45, 420);
   audio = await signal();
   assert.ok(audio.a > 0.04 && audio.seek < 0.004, `Cue did not return to the saved position: ${JSON.stringify(audio)}`);
-  await click(720, 404);
-  await click(430, 24);
+  await click(720, 459);
+  await click(1260, 72);
   audio = await signal();
   assert.ok(audio.a > 0.02 && audio.b > 0.02, `Hiding the players interrupted playback: ${JSON.stringify(audio)}`);
-  await click(430, 24);
+  await click(1260, 72);
   capture('players-mixing');
-  await click(45, 381);
-  await click(890, 381);
+  await click(45, 420);
+  await click(890, 420);
   audio = await signal();
   assert.ok(audio.rms < 0.0005, `Paused decks still emitted audio: ${JSON.stringify(audio)}`);
-  await click(75, 544);
-  await click(1370, 24);
+  await click(75, 612);
+  await click(1378, 72);
   const database = join(usb, 'PIONEER/rekordbox/export.pdb');
   for (let n = 0; n < 10 && !existsSync(database); n++) {
     capture(`players-export-${n}`);

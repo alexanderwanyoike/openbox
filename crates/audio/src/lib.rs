@@ -4,15 +4,41 @@ mod clip;
 mod engine;
 mod mixer;
 mod sync;
+mod waveform;
 pub use sync::{BeatGrid, SyncError};
 
-pub use clip::{Clip, WavePeak, Waveform};
+pub use clip::Clip;
 pub use engine::Engine;
 pub use mixer::{Band, DeckControl, DeckId, DeckSnapshot, Mixer, Snapshot};
+pub use waveform::{WavePeak, Waveform};
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn waveforms_keep_frequency_detail_and_silence_without_invented_amplitude() {
+        for (frequency, band) in [(80.0, 0), (1000.0, 1), (8000.0, 2)] {
+            let samples = (0..44100 * 2)
+                .flat_map(|n| {
+                    let value = ((n as f64 * frequency * std::f64::consts::TAU / 44100.0).sin()
+                        * 16000.0) as i16;
+                    [value, value]
+                })
+                .collect();
+            let clip = Clip::from_pcm(samples, 44100).unwrap();
+            let peak = clip.waveform.peak_at(0.75, 0.04);
+            assert!((peak.peak - 16000.0 / 32768.0).abs() < 0.04);
+            assert!(peak.bands[band] > peak.bands[(band + 1) % 3]);
+            assert!(peak.bands[band] > peak.bands[(band + 2) % 3]);
+            assert!(clip.waveform.bins_per_second >= 400.0);
+        }
+        let clip = Clip::from_pcm(vec![0; 44100 * 2], 44100).unwrap();
+        let quiet = clip.waveform.peak_at(0.5, 1.0);
+        assert_eq!(quiet.peak, 0.0);
+        assert_eq!(quiet.bands, [0.0; 3]);
+        assert_eq!(clip.waveform.peak_at(-1.0, 0.1).peak, 0.0);
+    }
 
     #[test]
     fn channel_faders_scale_trim_independently_without_stopping_or_muting_the_other_deck() {
@@ -134,20 +160,6 @@ mod tests {
 }
 
 #[cfg(test)]
-mod decode_error_tests {
-    use super::*;
-    #[test]
-    fn a_missing_track_has_an_actionable_message_without_decoder_output() {
-        let folder = tempfile::tempdir().unwrap();
-        let error = Clip::decode(&folder.path().join("missing.mp3")).unwrap_err();
-        let message = error.to_string();
-        assert!(message.contains("could not be found"), "{message}");
-        assert!(message.contains("missing.mp3"));
-        assert!(!message.contains("[in#") && !message.contains("Error opening input"));
-    }
-}
-
-#[cfg(test)]
 mod sync_tests {
     use super::*;
     #[test]
@@ -249,5 +261,19 @@ mod grid_refresh_tests {
         assert_eq!(mixer.snapshot().decks[1].sync_leader, None);
         assert_eq!(mixer.snapshot().decks[0].position, before.decks[0].position);
         assert_eq!(mixer.snapshot().decks[1].position, before.decks[1].position);
+    }
+}
+
+#[cfg(test)]
+mod decode_error_tests {
+    use super::*;
+    #[test]
+    fn a_missing_track_has_an_actionable_message_without_decoder_output() {
+        let folder = tempfile::tempdir().unwrap();
+        let error = Clip::decode(&folder.path().join("missing.mp3")).unwrap_err();
+        let message = error.to_string();
+        assert!(message.contains("could not be found"), "{message}");
+        assert!(message.contains("missing.mp3"));
+        assert!(!message.contains("[in#") && !message.contains("Error opening input"));
     }
 }
