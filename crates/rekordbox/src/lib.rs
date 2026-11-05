@@ -1,5 +1,6 @@
 mod analysis;
 mod database;
+mod journal;
 mod onelibrary;
 mod transfer;
 mod write;
@@ -130,6 +131,9 @@ pub fn put_tracks_with_progress(
 
 pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
     let root = root.canonicalize().map_err(|e| e.to_string())?;
+    if journal::pending(&root)? {
+        return Err("An interrupted USB save needs recovery. Recover this USB in Openbox before using it on a player.".into());
+    }
     let modern = onelibrary::Snapshot::read(&root)?;
     let legacy = onelibrary::snapshot::read_optional(&safe_path(&root, DATABASE)?)?;
     let has_legacy = legacy.is_some();
@@ -162,6 +166,12 @@ pub fn open(root: &Path) -> Result<DeviceLibrary, String> {
         modern,
         has_legacy,
     })
+}
+
+pub fn recover(root: &Path) -> Result<DeviceLibrary, String> {
+    let root = root.canonicalize().map_err(|e| e.to_string())?;
+    let _lock = DeviceWrite::acquire(&root)?;
+    open(&root)
 }
 
 pub fn save_playlists(device: &DeviceLibrary) -> Result<(), String> {

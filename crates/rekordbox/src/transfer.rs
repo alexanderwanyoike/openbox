@@ -112,10 +112,14 @@ pub(super) fn run(
     if let Err(error) = commit(&root, &output, previous.as_ref(), &updated, &staged.sources) {
         let unchanged = match std::fs::read(safe_path(&root, DATABASE)?) {
             Ok(bytes) => previous_bytes == Some(bytes.as_slice()),
-            Err(e) => previous.is_none() && e.kind() == std::io::ErrorKind::NotFound,
+            Err(e) => previous_bytes.is_none() && e.kind() == std::io::ErrorKind::NotFound,
         };
         // An uncertain commit must retain its audio in case the new database reached the device.
-        published.keep = !unchanged;
+        let modern_unchanged = super::onelibrary::Snapshot::read(&root).is_ok_and(|snapshot| {
+            snapshot.as_ref() == previous.as_ref().and_then(|device| device.modern.as_ref())
+        });
+        published.keep =
+            !unchanged || !modern_unchanged || super::journal::pending(&root).unwrap_or(true);
         return Err(error);
     }
     published.keep = true;

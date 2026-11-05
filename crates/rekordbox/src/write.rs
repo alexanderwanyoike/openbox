@@ -39,83 +39,24 @@ pub(super) fn commit(
         sources: sources.to_vec(),
     };
     let bytes = serde_json::to_vec_pretty(&cache).map_err(|e| e.to_string())?;
-    let database_path = safe_path(root, DATABASE)?;
-    let manifest_path = safe_path(root, MANIFEST)?;
-    let previous = if database_path.exists() {
-        Some(std::fs::read(&database_path).map_err(|e| e.to_string())?)
-    } else {
-        None
-    };
-    if previous.as_deref() != expected {
-        return Err("USB library changed. Refresh it before saving.".into());
-    }
-    let modern_path = safe_path(root, super::onelibrary::DATABASE)?;
-    let staged_modern = storage::prepare(&modern_path, &modern)?;
-    let staged_database = storage::prepare(&database_path, pdb)?;
-    let staged_manifest = storage::prepare(&manifest_path, &bytes)?;
-    if manifest_path.is_dir() {
-        return Err("Device manifest is a directory".into());
-    }
-    if let Some(bytes) = &previous {
-        let backups = safe_path(root, ".openbox/backups")?;
-        std::fs::create_dir_all(&backups).map_err(|e| e.to_string())?;
-        let backup = tempfile::Builder::new()
-            .prefix("save-")
-            .tempdir_in(&backups)
-            .map_err(|e| e.to_string())?;
-        storage::write_atomic(&backup.path().join("export.pdb"), bytes)?;
-        std::fs::File::open(backup.path())
-            .and_then(|d| d.sync_all())
-            .map_err(|e| format!("Could not sync USB backup: {e}"))?;
-        let _ = backup.keep();
-        std::fs::File::open(backups)
-            .and_then(|d| d.sync_all())
-            .map_err(|e| format!("Could not sync backup directory: {e}"))?;
-    }
-    let current = match std::fs::read(&database_path) {
-        Ok(bytes) => Some(bytes),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(e.to_string()),
-    };
-    if current.as_deref() != expected {
-        return Err("USB library changed. Refresh it before saving.".into());
-    }
-    if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
-        return Err("USB OneLibrary changed. Refresh it before saving.".into());
-    }
-    staged_database
-        .persist(&database_path)
-        .map_err(|e| e.to_string())?;
-    let publish = staged_modern
-        .persist(&modern_path)
-        .map_err(|e| e.to_string())
-        .and_then(|_| {
-            staged_manifest
-                .persist(&manifest_path)
-                .map(|_| ())
-                .map_err(|e| e.to_string())
-        });
-    if let Err(error) = publish {
-        match expected_modern {
-            Some(previous) => {
-                storage::write_atomic(&modern_path, &previous.bytes)?;
+    super::journal::publish(
+        root,
+        &[
+            (DATABASE, pdb),
+            (super::onelibrary::DATABASE, &modern),
+            (MANIFEST, &bytes),
+        ],
+        || {
+            let current = super::onelibrary::snapshot::read_optional(&safe_path(root, DATABASE)?)?;
+            if current.as_deref() != expected {
+                return Err("USB library changed. Refresh it before saving.".into());
             }
-            None => {
-                let _ = std::fs::remove_file(&modern_path);
+            if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
+                return Err("USB OneLibrary changed. Refresh it before saving.".into());
             }
-        }
-        // Roll back a normal cache-write failure; a crash is detected by the cache fingerprint.
-        let rollback = match previous {
-            Some(bytes) => storage::write_atomic(&database_path, &bytes),
-            None => std::fs::remove_file(&database_path).map_err(|e| e.to_string()),
-        };
-        return Err(match rollback {
-            Ok(()) => format!("Device save failed; the previous library was restored: {error}"),
-            Err(rollback) => {
-                format!("Device save failed: {error}. Could not restore database: {rollback}")
-            }
-        });
-    }
+            Ok(())
+        },
+    )?;
     Ok(())
 }
 
@@ -137,6 +78,8 @@ impl DeviceWrite {
         file.try_lock()
             .map_err(|e| format!("Cannot start USB write. Another write may be running: {e}"))?;
         // Keep one lock inode. Unlinking it could allow writers to lock different files.
-        Ok(Self { _file: file })
+        let lock = Self { _file: file };
+        super::journal::recover(root)?;
+        Ok(lock)
     }
 }
