@@ -11,7 +11,11 @@ struct Args {
     #[arg(long, help = "Open the separate demo library")]
     demo: bool,
 
-    #[arg(long, value_name = "FILE", help = "Local library JSON file")]
+    #[arg(
+        long,
+        value_name = "FILE",
+        help = "Local library JSON file (defaults to application data)"
+    )]
     library: Option<PathBuf>,
 
     #[arg(long, value_name = "DIRECTORY", help = "Root of a mounted USB")]
@@ -19,20 +23,27 @@ struct Args {
 }
 
 impl Args {
-    fn library_path(&self) -> PathBuf {
-        self.library.clone().unwrap_or_else(|| {
-            PathBuf::from(if self.demo {
-                ".prototype/demo-library.json"
-            } else {
-                ".prototype/library.json"
-            })
-        })
+    fn library_path(&self) -> Result<PathBuf, String> {
+        if let Some(path) = &self.library {
+            return Ok(path.clone());
+        }
+        if self.demo {
+            return Ok(PathBuf::from(".prototype/demo-library.json"));
+        }
+        let directories =
+            directories::ProjectDirs::from("io.github", "alexanderwanyoike", "openbox")
+                .ok_or("Cannot locate application data. Start Openbox with --library FILE.")?;
+        Ok(directories.data_local_dir().join("library.json"))
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let app = App::load(args.library_path(), args.usb).map_err(std::io::Error::other)?;
+    let app = App::load(
+        args.library_path().map_err(std::io::Error::other)?,
+        args.usb,
+    )
+    .map_err(std::io::Error::other)?;
     iced::application(
         move || {
             let task = app.startup();
@@ -69,6 +80,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn default_library_path_is_absolute_and_explicit_paths_still_take_precedence() {
+        let default = Args::try_parse_from(["openbox"])
+            .unwrap()
+            .library_path()
+            .unwrap();
+        assert!(
+            default.is_absolute(),
+            "Desktop launch must not store music data relative to its working directory: {default:?}"
+        );
+        let explicit = Args::try_parse_from(["openbox", "--library", "my-library.json"]).unwrap();
+        assert_eq!(
+            explicit.library_path().unwrap(),
+            PathBuf::from("my-library.json")
+        );
+    }
+
+    #[test]
     fn startup_flags_accept_paths_and_reject_missing_or_unknown_arguments() {
         let args = Args::try_parse_from([
             "openbox",
@@ -80,19 +108,19 @@ mod tests {
         ])
         .unwrap();
         assert!(args.demo);
-        assert_eq!(args.library_path(), PathBuf::from("/music/my library.json"));
+        assert_eq!(
+            args.library_path().unwrap(),
+            PathBuf::from("/music/my library.json")
+        );
         assert_eq!(args.usb, Some(PathBuf::from("/media/DJ USB")));
         assert!(Args::try_parse_from(["openbox", "--usb"]).is_err());
         assert!(Args::try_parse_from(["openbox", "--unknown"]).is_err());
         assert_eq!(
             Args::try_parse_from(["openbox", "--demo"])
                 .unwrap()
-                .library_path(),
+                .library_path()
+                .unwrap(),
             PathBuf::from(".prototype/demo-library.json")
-        );
-        assert_eq!(
-            Args::try_parse_from(["openbox"]).unwrap().library_path(),
-            PathBuf::from(".prototype/library.json")
         );
     }
 }
