@@ -12,4 +12,6 @@ Only Linux configures Iced's `application_id` field; other platforms retain thei
 
 Windows [FlushFileBuffers](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers) requires a writable handle. File publication and copied artwork therefore flush through writable handles to their own prepared files. This neither truncates those files nor opens original music for writing.
 
+USB imports copy content through a newly created writable file, retaining that handle for flushing. `fs::copy` would also inherit read-only source permissions, preventing the writable reopen. The read-only artwork regression verifies successful import and unchanged source permissions.
+
 The workflow was committed before the platform fixes, and its failing target builds and tests were observed on their actual operating systems. Local verification also runs the full software-renderer workspace suite and strict Clippy with static FFTW. Native Linux UI verification uses generated fixtures and a private display and output sink. Interactive macOS and Windows desktop verification is not available on this Linux host; native automated checks do not establish their desktop appearance or physical CDJ compatibility.
