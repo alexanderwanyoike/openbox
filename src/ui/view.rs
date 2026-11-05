@@ -598,10 +598,13 @@ impl App {
             }
         }
         let split = self.split_browser();
+        let outer_edge = self.deletion.is_none();
+        let left_edge = outer_edge && (source || !split);
+        let right_edge = outer_edge && (!source || !split);
         container(actions)
             .padding([8, INSET])
             .height(48)
-            .style(move |_| super::surfaces::footer(colors, source, split))
+            .style(move |_| super::surfaces::footer(colors, left_edge, right_edge))
             .into()
     }
 
@@ -650,7 +653,7 @@ impl App {
                             .size(12)
                             .color(colors.muted),
                     )
-                    .padding(20),
+                    .padding(INSET),
                 );
             }
         }
@@ -674,7 +677,7 @@ impl App {
             ]
             .spacing(12),
         )
-        .padding(20)
+        .padding(INSET)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
@@ -707,7 +710,7 @@ impl App {
             .align_y(Alignment::Center),
         )
         .padding(12)
-        .style(move |_| panel(colors.raised))
+        .style(move |_| super::surfaces::footer(colors, true, true))
         .into()
     }
 }

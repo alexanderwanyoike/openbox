@@ -13,15 +13,15 @@ pub(super) fn workspace(p: Palette) -> container::Style {
     style
 }
 
-pub(super) fn footer(p: Palette, source: bool, split: bool) -> container::Style {
+pub(super) fn footer(p: Palette, left_edge: bool, right_edge: bool) -> container::Style {
     container::Style {
         background: Some(p.raised.into()),
         border: Border {
             radius: iced::border::Radius {
                 top_left: 0.0,
                 top_right: 0.0,
-                bottom_left: if source || !split { CORNER } else { 0.0 },
-                bottom_right: if !source || !split { CORNER } else { 0.0 },
+                bottom_left: if left_edge { CORNER } else { 0.0 },
+                bottom_right: if right_edge { CORNER } else { 0.0 },
             },
             ..Default::default()
         },
