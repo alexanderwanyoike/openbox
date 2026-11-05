@@ -111,3 +111,28 @@ fn unstable_intro_estimates_do_not_reject_or_drop_a_compatible_sync_pair() {
         "Beat sync did not recover after the intro: {error}"
     );
 }
+
+#[test]
+fn cue_and_set_cue_keep_a_synced_follower_armed_for_the_next_start() {
+    for control in [DeckControl::Cue, DeckControl::SetCue] {
+        let mut mixer = Mixer::default();
+        deck(&mut mixer, DeckId::A, 0.5, 120.0);
+        deck(&mut mixer, DeckId::B, 0.48, 125.0);
+        mixer.control(DeckId::A, DeckControl::Seek(4.13));
+        mixer.control(DeckId::B, DeckControl::Seek(8.81));
+        mixer.control(DeckId::A, DeckControl::PlayPause);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
+        mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+        mixer.control(DeckId::B, control);
+        let stopped = mixer.snapshot().decks[1];
+        assert_eq!(stopped.sync_leader, Some(DeckId::A), "Cue disarmed sync");
+        assert!(!stopped.playing && !stopped.sync_phase);
+        mixer.control(DeckId::B, DeckControl::PlayPause);
+        let [a, b] = mixer.snapshot().decks;
+        let error = (a.position / 0.5 - b.position / 0.48 + 0.5).rem_euclid(1.0) - 0.5;
+        assert!(
+            error.abs() < 0.001,
+            "Cue restart did not realign the follower"
+        );
+    }
+}
