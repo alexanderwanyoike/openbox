@@ -1,10 +1,30 @@
 # Openbox
 
-A native Rust and Iced application for preparing DJ collections and managing Rekordbox Device Library and OneLibrary USB libraries.
+A native Rust and Iced application for preparing DJ collections on Linux, Windows and macOS.
 
-![Collection and USB playlist workspace](docs/images/workspace.png)
+- Search, sort and edit tracks in batches, with tags and cover artwork.
+- Organise playlists in folders and move selections between local and USB libraries.
+- Read existing Rekordbox USBs and export both Device Library and OneLibrary databases.
+- Preview transitions with two decks, beat sync, EQ knobs and channel faders.
+- Analyze BPM, key and beatgrids with aubio, libkeyfinder and Mixxx grid post-processing.
+- Choose light or dark mode, materials, accents and waveform palettes.
 
-![Analysis, cover artwork and channel mixer](docs/images/analysis-and-mixer.png)
+![Two preview decks, mixer and music library](docs/images/release-workspace-dark.png)
+
+## Installation
+
+Get the archive for your platform from [Releases](https://github.com/alexanderwanyoike/openbox/releases) or the [project site](https://alexanderwanyoike.github.io/openbox/).
+
+| Platform | Download |
+|---|---|
+| Linux, x86_64 | `openbox-x86_64-unknown-linux-gnu.tar.gz`, built on Ubuntu 24.04 |
+| Windows, x86_64 | `openbox-x86_64-pc-windows-msvc.zip` |
+| macOS, Apple silicon | `openbox-aarch64-apple-darwin.tar.gz` |
+| macOS, Intel | `openbox-x86_64-apple-darwin.tar.gz` |
+
+Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
+
+Extract the archive and run Openbox. On macOS, move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
 
 ## Run
 
@@ -53,8 +73,6 @@ The app bar contains File, Edit and View menus. Import, analysis, deck visibilit
 
 ## Preview and mix
 
-![Two preview decks and mixer](docs/images/players.png)
-
 Click **Players** in the toolbar. Select one track in the collection or on the USB, then click **Load A** or **Load B**. Each song loads in the background without changing its source file.
 
 - **Play/Pause** controls each deck independently. **Set cue** stores the current position and pauses; **Cue** returns to it. Cue points belong to the preview session.
@@ -74,6 +92,8 @@ Open Settings using the gear icon. Light and dark modes combine with eight mater
 ![Appearance settings](docs/images/settings-dark.png)
 
 ## Manage a USB
+
+![Collection beside an existing USB playlist](docs/images/release-usb-playlist.png)
 
 Connect the root of a mounted FAT32 USB. Traditional Device Library and OneLibrary devices open directly from `PIONEER/rekordbox/export.pdb` or `exportLibrary.db`. Exports write both formats.
 
@@ -95,13 +115,15 @@ Opening a USB is read-only. Writes back up the previous database under `.openbox
 
 New collection audio is encoded as stereo 44.1 kHz, 320 kbps MP3 with DAT/EXT/2EX waveforms and detected beat entries. BPM and key are written into the device database and ID3 tags. Export compensates for MP3 priming delay so the grid follows the exported waveform. Existing USB audio, analysis and artwork remain byte for byte; unchanged transfers reuse complete prepared assets. Exports cached before modern waveform support are prepared again while retaining their previous device files.
 
-Imports automatically analyze BPM, beats and musical key using [aubio](https://aubio.org/) and [Mixxx libkeyfinder](https://github.com/mixxxdj/libkeyfinder). For existing collections, click **Analyze** to analyze the library, or select a batch first to analyze only those tracks, then reexport the playlist. Analysis progress appears in the status bar. An export also analyzes legacy tracks that have no stored analysis. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering starts at the first detected beat and does not identify the musical downbeat. Tempo, key and phase remain estimates to check by ear before relying on player sync/quantize.
+Imports automatically analyze BPM and beats using [aubio](https://aubio.org/), with constant-tempo grid post-processing adapted from [Mixxx BeatUtils](https://github.com/mixxxdj/mixxx/blob/bc49961fd3e5a46cd46588090c652a0d7ec44e18/src/track/beatutils.cpp). [libkeyfinder](https://github.com/mixxxdj/libkeyfinder) detects musical key. For existing collections, click **Analyze** for the whole library, or select a batch first, then reexport the playlist. Analysis progress appears in the status bar. Export refreshes missing or outdated Openbox analysis without changing local records or imported Rekordbox grids. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering is a reference and does not identify the musical downbeat. Dynamic-tempo recordings, tempo, key and phase still need checking by ear before relying on player sync/quantize.
 
 Lofty reads ID3 and other supported tags. Titles, artists, albums, genres, album artists, composers, comments, dates and track/disc numbers are retained; the browser and preview decks display cover artwork. USB export writes ID3v2.3 with an embedded JPEG and registers 80x80 and 240x240 artwork files. USB playlist import copies artwork, audio and the grid locally so they remain available after unplugging. Local cue editing and exporting imported cues to another device are not implemented.
 
 The application does not format drives or delete existing USB audio. Backups and old database pages accumulate with edits. Interrupted saves are detected through a paired-file rollback journal. Use **Recover USB** in Devices to restore the previous library files. Opening a device never performs recovery automatically. Drive-controller or filesystem behaviour during power loss or unplugging is not guaranteed.
 
 **The user has confirmed USB playlist visibility on their hardware. BPM, grid, artwork, sync/quantize and complete playback behavior still need physical XDJ-1000 validation.** File-format and GUI validation cannot prove player compatibility. See [the hardware checklist](docs/HARDWARE-VALIDATION.md).
+
+Openbox writes the two library formats used by the requested player families. Traditional Device Library targets include CDJ-2000, CDJ-900/900NXS, CDJ-850, XDJ-1000/1000MK2 and CDJ-3000. OneLibrary targets include CDJ-3000X, OPUS-QUAD, OMNIS-DUO and XDJ-AZ. These are format targets, not a list of physically tested Openbox devices. Firmware can affect format selection; consult [AlphaTheta's compatibility notice](https://alphatheta.com/en/information/important-notice-for-customers-using-usb-devices-with-our-dj-equipment/) and [current USB export table](https://rekordbox.com/en/support/usb-export/).
 
 ## Workspace
 
@@ -153,4 +175,4 @@ The compiled executable is `target/release/openbox`. See [validation details](do
 
 ## License
 
-MIT. Third-party dependencies retain their own licenses.
+Original Openbox source is MIT. The adapted Mixxx grid files are GPLv2 or later. GPLv3 terms apply to the combined executable because it links GPL components. Release packages include licensing notices and corresponding source; see [third-party notices](THIRD-PARTY-NOTICES.md).
