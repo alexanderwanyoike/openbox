@@ -125,7 +125,9 @@ def package(
                 ]:
                     shutil.move(staging / name, legal / name)
                 shutil.copytree(
-                    appimage_tools / "licenses", legal / "licenses/AppImage"
+                    appimage_tools / "licenses",
+                    legal / "licenses/AppImage",
+                    dirs_exist_ok=True,
                 )
                 (appdir / "AppRun").symlink_to("usr/bin/openbox")
                 (appdir / f"{identity}.desktop").symlink_to(
