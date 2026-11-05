@@ -1,5 +1,7 @@
 pub mod appearance;
 mod browser;
+#[cfg(test)]
+mod browser_layout_tests;
 mod chrome;
 mod faders;
 mod icons;
