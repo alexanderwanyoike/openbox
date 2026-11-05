@@ -231,7 +231,9 @@ impl Mixer {
         else {
             return Err(SyncError::MissingGrid);
         };
-        let rate = master_grid.bpm * source.rate / grid.bpm;
+        let source_time = source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate);
+        let target_time = target.cursor / f64::from(clip.sample_rate);
+        let rate = master_grid.local_bpm(source_time) * source.rate / grid.local_bpm(target_time);
         if !(0.92..=1.08).contains(&rate) {
             return Err(SyncError::PitchRange);
         }
@@ -260,8 +262,17 @@ impl Mixer {
             return;
         };
         let source = &self.decks[leader.index()];
-        let rate = source.grid.as_ref().unwrap().bpm * source.rate
-            / self.decks[follower.index()].grid.as_ref().unwrap().bpm;
+        let target = &self.decks[follower.index()];
+        let rate =
+            source
+                .grid
+                .as_ref()
+                .unwrap()
+                .local_bpm(source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate))
+                * source.rate
+                / target.grid.as_ref().unwrap().local_bpm(
+                    target.cursor / f64::from(target.clip.as_ref().unwrap().sample_rate),
+                );
         if (0.92..=1.08).contains(&rate) {
             self.decks[follower.index()].rate = rate;
         } else {
@@ -315,6 +326,7 @@ impl Mixer {
 
     pub fn render(&mut self, output: &mut [f32], sample_rate: u32, channels: usize) {
         for follower in [DeckId::A, DeckId::B] {
+            self.follow_tempo(follower);
             let target = &self.decks[follower.index()];
             let adjustment = if let Some(leader) = target.sync_leader {
                 let source = &self.decks[leader.index()];

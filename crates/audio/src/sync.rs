@@ -39,6 +39,16 @@ impl BeatGrid {
             beats: beats.into(),
         })
     }
+    pub(crate) fn local_bpm(&self, time: f64) -> f64 {
+        let index = self
+            .beats
+            .partition_point(|&at| at <= time)
+            .saturating_sub(1);
+        let count = 8.min(self.beats.len() - 1);
+        let start = index.saturating_sub(4).min(self.beats.len() - 1 - count);
+        60.0 * count as f64 / (self.beats[start + count] - self.beats[start])
+    }
+
     pub(crate) fn phase(&self, time: f64) -> (f64, f64) {
         let index = self
             .beats
