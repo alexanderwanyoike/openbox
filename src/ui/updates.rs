@@ -71,8 +71,7 @@ impl App {
                     let progress = Arc::clone(&self.update_progress);
                     return run(
                         move || {
-                            let path = std::env::current_exe()
-                                .map_err(|e| UpdateError::Service(e.to_string()))?;
+                            let path = openbox_updater::installation_path()?;
                             Client::default().install(
                                 env!("CARGO_PKG_VERSION"),
                                 &release,

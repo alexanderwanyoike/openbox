@@ -1,3 +1,6 @@
+mod installation;
+pub use installation::installation_path;
+
 mod package;
 pub use package::Package;
 
@@ -28,6 +31,10 @@ pub enum UpdateError {
     InvalidRelease,
     #[error("Updates on macOS require an installed Openbox.app bundle")]
     InvalidInstallPath,
+    #[error(
+        "Cannot locate the writable Openbox AppImage. Move it to a writable folder and reopen it."
+    )]
+    InvalidAppImage,
     #[error("The requested release is not newer than the installed version")]
     NotNewer,
     #[error("Cannot restart Openbox: {0}")]
