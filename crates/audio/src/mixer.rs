@@ -55,6 +55,7 @@ pub struct DeckSnapshot {
     pub peak: f32,
     pub cue: f64,
     pub sync_leader: Option<DeckId>,
+    pub sync_phase: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -67,6 +68,7 @@ pub struct Snapshot {
 struct Deck {
     grid: Option<BeatGrid>,
     sync_leader: Option<DeckId>,
+    sync_phase: bool,
     clip: Option<Clip>,
     cursor: f64,
     playing: bool,
@@ -86,6 +88,7 @@ impl Default for Deck {
         Self {
             grid: None,
             sync_leader: None,
+            sync_phase: false,
             clip: None,
             cursor: 0.0,
             playing: false,
@@ -250,7 +253,8 @@ impl Mixer {
         let phase = master_grid
             .phase(source.cursor / f64::from(source.clip.as_ref().unwrap().sample_rate))
             .0;
-        let position = if target.playing && source.playing && phase_available {
+        let beat_sync = target.playing && source.playing;
+        let position = if beat_sync && phase_available {
             grid.align(
                 target.cursor / f64::from(clip.sample_rate),
                 phase,
@@ -263,6 +267,8 @@ impl Mixer {
         self.decks[leader.index()].sync_leader = None;
         let target = &mut self.decks[follower.index()];
         target.sync_leader = Some(leader);
+        target.sync_phase = phase_available && beat_sync;
+
         target.rate = rate;
         target.adjustment = 1.0;
         target.cursor = position * f64::from(target.clip.as_ref().unwrap().sample_rate);
@@ -330,6 +336,7 @@ impl Mixer {
                     }),
                     peak: d.peak,
                     sync_leader: d.sync_leader,
+                    sync_phase: d.sync_leader.is_some() && d.sync_phase,
                     cue: d
                         .clip
                         .as_ref()
@@ -363,6 +370,10 @@ impl Mixer {
             } else {
                 1.0
             };
+            let phase_sync = target.sync_leader.is_some_and(|leader| {
+                phase_available && target.playing && self.decks[leader.index()].playing
+            });
+            self.decks[follower.index()].sync_phase = phase_sync;
             self.decks[follower.index()].adjustment = adjustment;
         }
         output.fill(0.0);

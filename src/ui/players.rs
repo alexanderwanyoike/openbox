@@ -216,8 +216,8 @@ impl App {
             action("Set cue", control(DeckControl::SetCue), enabled),
             tooltip(action("Master", Message::Preview(Event::SetLeader(id)), enabled)
                 .style(move |theme, status| { let mut style = view::quiet(theme, status); if self.preview.leader == id { style.text_color = accent; } style }), text("Use this deck as the sync master").size(11), tooltip::Position::Top),
-            tooltip(action(if state.sync_leader.is_some() { "SYNC ON" } else { "Sync" }, Message::Preview(Event::Sync(id)), enabled && self.preview.leader != id && self.preview.decks.iter().all(|deck| deck.track.as_ref().is_some_and(|track| track.details.analysis.as_ref().is_some_and(|analysis| analysis.beats.len() > 1))))
-                .style(move |theme, status| { let mut style = view::secondary(theme, status); if state.sync_leader.is_some() { style.background = Some(accent.into()); style.border.color = accent; } style }), text("Match tempo and beat phase to the master; manual pitch or seeking releases sync").size(11), tooltip::Position::Top),
+            tooltip(action(if state.sync_leader.is_some() { if state.sync_phase { "SYNC ON" } else { "TEMPO" } } else { "Sync" }, Message::Preview(Event::Sync(id)), enabled && self.preview.leader != id && self.preview.decks.iter().all(|deck| deck.track.as_ref().is_some_and(|track| track.details.analysis.as_ref().is_some_and(|analysis| analysis.beats.len() > 1))))
+                .style(move |theme, status| { let mut style = view::secondary(theme, status); if state.sync_leader.is_some() { style.background = Some(accent.into()); style.border.color = accent; } style }), text("Follow the playing master. TEMPO waits for a usable beat grid or Play; SYNC ON aligns beats. Manual pitch or seeking releases sync").size(11), tooltip::Position::Top),
 
             Space::new().width(Length::Fill),
             tooltip(
