@@ -4,6 +4,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
+const integrated = process.env.OPENBOX_LAYOUT === 'integrated';
+const transportY = integrated ? 420 : 381;
 const work = mkdtempSync('/tmp/openbox-sync-');
 const library = join(work, 'library.json');
 const screenshots = resolve('.prototype/screenshots');
@@ -64,24 +66,24 @@ try {
   }
   assert.ok(window, `No native window: ${logs}`);
   x('windowfocus', window);
-  await click(400, 187);
-  await click(430, 24);
-  await click(550, 81);
+  await click(400, integrated ? 234 : 187);
+  await click(integrated ? 1260 : 430, integrated ? 72 : 24);
+  await click(550, integrated ? 134 : 81);
   await delay(1000);
-  await click(400, 592);
-  await click(1390, 81);
+  await click(400, integrated ? 647 : 592);
+  await click(1390, integrated ? 134 : 81);
   await delay(1000);
-  await click(45, 381);
+  await click(890, transportY);
   await delay(700);
-  await click(890, 381);
+  await click(45, transportY);
   await capture('sync-before');
-  await click(1148, 381);
+  await click(integrated ? 302 : 290, transportY);
   await delay(2000);
   await capture('sync-active');
   samples = Buffer.alloc(0);
   await delay(6000);
-  const a = envelopes(660, samples);
-  const b = envelopes(990 * 120 / 126, samples);
+  const a = envelopes(660 * 126 / 120, samples);
+  const b = envelopes(990, samples);
   assert.ok(a.length > 200, 'No recorded output');
   const mean = values => values.reduce((sum, v) => sum + v, 0) / values.length;
   const ma = mean(a), mb = mean(b);
@@ -89,13 +91,13 @@ try {
   for (let n = 0; n < a.length; n++) { covariance += (a[n] - ma) * (b[n] - mb); va += (a[n] - ma) ** 2; vb += (b[n] - mb) ** 2; }
   const correlation = covariance / Math.sqrt(va * vb);
   console.log(`Recorded beat-envelope correlation: ${correlation.toFixed(3)}`);
-  assert.ok(ma > 0.002 && mb > 0.002, 'Both synced decks must be audible');
+  assert.ok(ma > 0.002 && mb > 0.002, 'Sync A must match the already-playing B deck, including its audible pitch');
   assert.ok(correlation > 0.9, 'Recorded beat pulses are not aligned');
-  await click(1220, 412);
+  await click(450, integrated ? 452 : 412);
   await capture('sync-manual-pitch');
   assert.ok(readFileSync(library).equals(original), 'Sync changed library bytes');
   tracks.forEach((track, n) => assert.ok(readFileSync(track.path).equals(sources[n]), 'Sync changed audio bytes'));
-  console.log('Native sync smoke passed: two loaded analyzed tracks, master/follower control, aligned recorded beat envelopes and manual pitch, unchanged library and audio.');
+  console.log('Native sync smoke passed: two loaded analyzed tracks, automatic master from the first playing deck, aligned recorded beat envelopes and manual pitch, unchanged library and audio.');
 } finally {
   app.kill('SIGTERM'); recorder.kill('SIGTERM');
   execFileSync('pactl', ['unload-module', moduleId]);
