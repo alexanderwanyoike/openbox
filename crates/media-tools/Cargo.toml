@@ -1,0 +1,13 @@
+[package]
+name = "openbox-media-tools"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+which = "4.4.2"
+
+[dev-dependencies]
+tempfile.workspace = true

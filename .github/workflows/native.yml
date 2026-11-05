@@ -38,6 +38,12 @@ jobs:
         run: cargo build --locked --target ${{ matrix.target }} --no-default-features --features desktop
       - name: Test native code
         run: cargo test --locked --workspace --all-targets --target ${{ matrix.target }} --no-default-features --features desktop
+      - name: Exercise analysis with Finder's restricted PATH
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          analysis_test=$(cargo test --locked -p openbox-analysis --target ${{ matrix.target }} --no-run --message-format=json | python3 -c 'import json,sys; artifacts=[json.loads(line) for line in sys.stdin]; print(next(item["executable"] for item in artifacts if item.get("reason")=="compiler-artifact" and item["target"]["name"]=="openbox_analysis" and item["profile"]["test"] and item.get("executable")))')
+          PATH=/usr/bin:/bin "$analysis_test" --exact tests::detects_tempo_key_and_beats_from_audio_without_tags
       - name: Exercise executable startup
         shell: bash
         run: |

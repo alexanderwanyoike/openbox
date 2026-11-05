@@ -7,4 +7,5 @@ license.workspace = true
 publish = false
 
 [dependencies]
+openbox-media-tools.workspace = true
 baken-export.workspace = true

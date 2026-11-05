@@ -15,7 +15,7 @@ use std::{
     collections::{HashMap, HashSet},
     io::{BufRead, BufReader, Read},
     path::Path,
-    process::{Command, Stdio},
+    process::Stdio,
 };
 
 pub(super) enum Transfer<'a> {
@@ -627,7 +627,8 @@ fn transcode(
     progress: &mut dyn FnMut(f32),
 ) -> Result<(), String> {
     progress(0.0);
-    let mut child = Command::new("ffmpeg")
+    let mut child = openbox_media_tools::Tools::system()
+        .ffmpeg()
         .args([
             "-nostdin",
             "-v",

@@ -9,6 +9,7 @@ license = "MIT"
 version = "0.1.0"
 
 [workspace.dependencies]
+openbox-media-tools = { path = "crates/media-tools" }
 openbox-domain = { path = "crates/domain" }
 openbox-storage = { path = "crates/storage" }
 openbox-rekordbox = { path = "crates/rekordbox" }

@@ -3,12 +3,7 @@ mod key;
 
 use aubio::{OnsetMode, Tempo};
 use openbox_domain::{Beat, TrackAnalysis};
-use std::{
-    io::Read,
-    path::Path,
-    process::{Command, Stdio},
-    sync::Mutex,
-};
+use std::{io::Read, path::Path, process::Stdio, sync::Mutex};
 
 const RATE: u32 = 22050;
 const HOP: usize = 64;
@@ -27,7 +22,8 @@ pub fn analyze(path: &Path) -> Result<Analysis, String> {
     let _guard = KEYFINDER_LOCK.lock().map_err(|e| e.to_string())?;
     let mut key = key::Key::new()?;
     let mut tempo = Tempo::new(OnsetMode::SpecFlux, 1024, HOP, RATE).map_err(|e| e.to_string())?;
-    let mut child = Command::new("ffmpeg")
+    let mut child = openbox_media_tools::Tools::system()
+        .ffmpeg()
         .args(["-nostdin", "-v", "error", "-i"])
         .arg(path)
         .args([
@@ -170,7 +166,8 @@ mod tests {
     fn silence_has_no_invented_key_tempo_or_grid_and_corrupt_audio_fails() {
         let directory = tempfile::tempdir().unwrap();
         let silent = directory.path().join("silence.wav");
-        let status = Command::new("ffmpeg")
+        let status = openbox_media_tools::Tools::system()
+            .ffmpeg()
             .args([
                 "-v",
                 "error",

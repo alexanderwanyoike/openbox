@@ -414,7 +414,8 @@ mod tests {
         std::fs::write(&source, ppm).unwrap();
         let cover = music.path().join("cover.jpg");
         assert!(
-            std::process::Command::new("ffmpeg")
+            openbox_media_tools::Tools::system()
+                .ffmpeg()
                 .args(["-v", "error", "-i"])
                 .arg(source)
                 .arg(&cover)
@@ -479,7 +480,8 @@ mod tests {
         let usb = tempfile::tempdir().unwrap();
         let path = music.path().join("impulse.wav");
         assert!(
-            std::process::Command::new("ffmpeg")
+            openbox_media_tools::Tools::system()
+                .ffmpeg()
                 .args([
                     "-v",
                     "error",
@@ -516,7 +518,8 @@ mod tests {
         library.add_to_playlist(playlist, id).unwrap();
         let device = export(&library, &[playlist], usb.path()).unwrap();
         let track = &device.library.tracks()[0];
-        let decoded = std::process::Command::new("ffmpeg")
+        let decoded = openbox_media_tools::Tools::system()
+            .ffmpeg()
             .args(["-v", "error", "-i"])
             .arg(&track.path)
             .args(["-ac", "1", "-ar", "44100", "-f", "f32le", "pipe:1"])

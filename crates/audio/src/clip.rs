@@ -1,11 +1,6 @@
 use crate::DecodeError;
 use crate::waveform::Waveform;
-use std::{
-    io::Read,
-    path::Path,
-    process::{Command, Stdio},
-    sync::Arc,
-};
+use std::{io::Read, path::Path, process::Stdio, sync::Arc};
 
 const PREVIEW_RATE: u32 = 44100;
 
@@ -52,7 +47,8 @@ impl Clip {
             path: path.into(),
             details,
         };
-        let mut child = Command::new("ffmpeg")
+        let mut child = openbox_media_tools::Tools::system()
+            .ffmpeg()
             .args(["-nostdin", "-v", "error", "-i"])
             .arg(path)
             .args([
