@@ -109,3 +109,52 @@ fn shared_playlist_toolbar_accepts_name_edits() {
         "The playlist name field must remain editable after moving into the shared toolbar"
     );
 }
+
+#[test]
+fn selected_playlist_tracks_can_be_removed_at_the_minimum_window_width() {
+    struct Sidebar(Option<Rectangle>);
+    impl Operation for Sidebar {
+        fn traverse(&mut self, children: &mut dyn FnMut(&mut dyn Operation)) {
+            children(self);
+        }
+        fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
+            if id.is_some_and(|id| *id == Id::new("collection-panel")) {
+                self.0 = Some(bounds);
+            }
+        }
+    }
+    let folder = tempfile::tempdir().unwrap();
+    let root = folder.path().join("usb");
+    openbox_test_support::rekordbox_usb(&root);
+    let mut app = App::load(folder.path().join("library.json"), Some(root)).unwrap();
+    let _ = app.update(Message::OpenPlaylist(Target::Usb, 23));
+    let _ = app.update(Message::ToggleTrack(42));
+    let mut renderer = super::rendering::new_renderer();
+    let mut ui = UserInterface::build(
+        app.view(),
+        iced::Size::new(1000.0, 900.0),
+        Cache::new(),
+        &mut renderer,
+    );
+    let mut sidebar = Sidebar(None);
+    ui.operate(&renderer, &mut sidebar);
+    let bounds = sidebar.0.unwrap();
+    let cursor = mouse::Cursor::Available(iced::Point::new(961.0, bounds.y + bounds.height - 24.0));
+    let mut messages = Vec::new();
+    let _ = ui.update(
+        &[
+            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)),
+            iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)),
+        ],
+        cursor,
+        &mut renderer,
+        &mut iced_graphics::core::clipboard::Null,
+        &mut messages,
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| matches!(m, Message::RemoveFromPlaylist)),
+        "The remove action must be visible and clickable inside a 1000 px window"
+    );
+}
