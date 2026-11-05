@@ -181,10 +181,8 @@ impl App {
         let preferences = appearance::Preferences::load(&settings_path);
         let settings_error = preferences.as_ref().err().cloned();
         let mut workspace = Workspace::load(library_path)?;
-        if let Some(root) = &usb_root
-            && root.join("PIONEER/rekordbox/export.pdb").exists()
-        {
-            workspace.device = Some(usb::open(root)?);
+        if let Some(root) = &usb_root {
+            workspace.device = usb::open_existing(root)?;
         }
         Ok(Self {
             workspace,
@@ -1184,15 +1182,7 @@ impl App {
             return Task::done(Message::Connected(Err("Select a USB first".into())));
         };
         Task::perform(
-            background(move || {
-                if root.join("PIONEER/rekordbox/export.pdb").exists() {
-                    usb::open(&root).map(Some)
-                } else if root.join("PIONEER").exists() {
-                    Err("No traditional Rekordbox export.pdb found on this USB.".into())
-                } else {
-                    Ok(None)
-                }
-            }),
+            background(move || usb::open_existing(&root)),
             Message::Connected,
         )
     }
