@@ -42,30 +42,36 @@ class PackageNativeTest(unittest.TestCase):
             text=True,
         )
 
-    def test_linux_archive_preserves_executable_and_distribution_notices(self):
+    def test_linux_appimage_runs_and_contains_desktop_identity_and_notices(self):
         result = self.package("x86_64-unknown-linux-gnu")
         self.assertEqual(result.returncode, 0, result.stderr)
-        archive = self.root / "out/openbox-x86_64-unknown-linux-gnu.tar.gz"
-        with tarfile.open(archive) as package:
-            package.extractall(self.root / "unpacked", filter="data")
-        unpacked = self.root / "unpacked"
-        self.assertTrue((unpacked / "licenses/COPYING.GPL-3").is_file())
-        self.assertTrue((unpacked / "THIRD-PARTY-NOTICES.md").is_file())
-        desktop = (
-            unpacked / "share/applications/io.github.alexanderwanyoike.openbox.desktop"
-        )
-        self.assertIn("Icon=io.github.alexanderwanyoike.openbox", desktop.read_text())
-        self.assertTrue(
-            (
-                unpacked
-                / "share/icons/hicolor/scalable/apps/io.github.alexanderwanyoike.openbox.svg"
-            ).is_file()
-        )
+        image = self.root / "out/openbox-x86_64-unknown-linux-gnu.AppImage"
+        self.assertTrue(image.is_file(), "Linux download must be an AppImage")
+        self.assertEqual(image.read_bytes()[8:11], b"AI\x02")
         self.assertEqual(
             subprocess.check_output(
-                [str(unpacked / "openbox"), "--version"], text=True
+                [str(image), "--appimage-extract-and-run", "--version"], text=True
             ),
             "openbox 0.1.1\n",
+        )
+        subprocess.run(
+            [str(image), "--appimage-extract"],
+            cwd=self.root,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        unpacked = self.root / "squashfs-root"
+        self.assertTrue((unpacked / "AppRun").is_file())
+        self.assertTrue(
+            (unpacked / "usr/share/openbox/licenses/COPYING.GPL-3").is_file()
+        )
+        self.assertTrue(
+            (unpacked / "usr/share/openbox/THIRD-PARTY-NOTICES.md").is_file()
+        )
+        desktop = unpacked / "io.github.alexanderwanyoike.openbox.desktop"
+        self.assertIn("Icon=io.github.alexanderwanyoike.openbox", desktop.read_text())
+        self.assertTrue(
+            (unpacked / "io.github.alexanderwanyoike.openbox.svg").is_file()
         )
 
     def test_windows_zip_contains_the_executable_and_distribution_notices(self):
