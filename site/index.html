@@ -6,7 +6,7 @@
     <title>Openbox</title>
     <meta
       name="description"
-      content="DJ library, playlists and Rekordbox USB management for Linux."
+      content="DJ library, playlists, two-deck preview and Rekordbox USB management for Linux, Windows and macOS."
     />
     <meta name="theme-color" content="#101010" />
     <link rel="canonical" href="https://alexanderwanyoike.github.io/openbox/" />
@@ -31,18 +31,26 @@
       <section class="intro">
         <div>
           <h1>Openbox</h1>
-          <p>DJ library and USB management for Linux.</p>
+          <p>
+            Prepare your music library, preview a mix and manage Rekordbox USBs.
+          </p>
         </div>
         <a class="button primary" href="#download">Download</a>
       </section>
       <figure>
-        <img
-          src="assets/workspace.png"
-          alt="Openbox library, decks and mixer"
-          width="1440"
-          height="900"
-          fetchpriority="high"
-        />
+        <picture>
+          <source
+            media="(prefers-color-scheme: light)"
+            srcset="assets/workspace-light.png"
+          />
+          <img
+            src="assets/workspace.png"
+            alt="Openbox library, decks and mixer"
+            width="1440"
+            height="900"
+            fetchpriority="high"
+          />
+        </picture>
       </figure>
       <section class="details" aria-label="Features">
         <div>
@@ -55,29 +63,103 @@
         <div>
           <h2>Rekordbox USBs</h2>
           <p>
-            Import, export and update playlists on existing Device Library USBs.
+            Import, export and update playlists on Device Library and OneLibrary
+            USBs.
           </p>
         </div>
         <div>
           <h2>Preview and analysis</h2>
-          <p>Two decks, a mixer, beat grids, BPM, key and cover artwork.</p>
-        </div>
-      </section>
-      <section id="download" class="download">
-        <div>
-          <h2>Linux</h2>
-          <p id="release-status" aria-live="polite">
-            Releases and installation instructions.
+          <p>
+            Two decks with beat sync, channel EQ and faders. BPM, key, beatgrids
+            and cover artwork.
           </p>
         </div>
-        <a
-          id="release-link"
-          class="button primary"
-          href="https://github.com/alexanderwanyoike/openbox/releases"
-          >View releases</a
-        >
       </section>
-      <p class="requirements">x86_64 · FFmpeg · ALSA · FFTW3</p>
+      <figure>
+        <picture>
+          <source
+            media="(prefers-color-scheme: light)"
+            srcset="assets/usb-playlist-light.png"
+          />
+          <img
+            src="assets/usb-playlist.png"
+            alt="Local collection beside a USB playlist with shared editing controls"
+            width="1440"
+            height="900"
+            loading="lazy"
+          />
+        </picture>
+      </figure>
+      <section id="download" class="download">
+        <div class="download-heading">
+          <h2>Download</h2>
+          <p id="release-status" aria-live="polite">Release downloads</p>
+        </div>
+        <div class="platforms">
+          <article>
+            <h3>Linux</h3>
+            <p>x86_64 · Ubuntu 24.04 or newer</p>
+            <a
+              class="button primary"
+              data-asset="openbox-x86_64-unknown-linux-gnu.tar.gz"
+              data-platform="Linux"
+              data-label="Download"
+              aria-label="Linux releases"
+              href="https://github.com/alexanderwanyoike/openbox/releases"
+              >View releases</a
+            >
+          </article>
+          <article>
+            <h3>Windows</h3>
+            <p>Windows 10 / 11 · x86_64</p>
+            <a
+              class="button primary"
+              data-asset="openbox-x86_64-pc-windows-msvc.zip"
+              data-platform="Windows"
+              data-label="Download"
+              aria-label="Windows releases"
+              href="https://github.com/alexanderwanyoike/openbox/releases"
+              >View releases</a
+            >
+          </article>
+          <article>
+            <h3>macOS</h3>
+            <p>Apple silicon and Intel</p>
+            <div class="mac-downloads">
+              <a
+                class="button primary"
+                data-asset="openbox-aarch64-apple-darwin.tar.gz"
+                data-platform="Apple silicon"
+                data-label="Apple silicon"
+                aria-label="Apple silicon releases"
+                href="https://github.com/alexanderwanyoike/openbox/releases"
+                >Apple silicon</a
+              >
+              <a
+                class="button secondary"
+                data-asset="openbox-x86_64-apple-darwin.tar.gz"
+                data-platform="Intel Mac"
+                data-label="Intel"
+                aria-label="Intel Mac releases"
+                href="https://github.com/alexanderwanyoike/openbox/releases"
+                >Intel</a
+              >
+            </div>
+          </article>
+        </div>
+      </section>
+      <p class="requirements">
+        FFmpeg and ffprobe are required.
+        <a href="https://github.com/alexanderwanyoike/openbox#installation"
+          >Installation instructions</a
+        >
+      </p>
+      <p class="compatibility">
+        Exports include Device Library and OneLibrary databases, MP3 audio,
+        artwork, beatgrids and DAT/EXT/2EX waveforms. USB playlist visibility
+        has been confirmed on an XDJ-1000. Full playback, waveform alignment and
+        quantization still need hardware validation.
+      </p>
     </main>
     <footer class="wrap">
       <span>Openbox</span
