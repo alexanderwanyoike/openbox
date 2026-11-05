@@ -3619,6 +3619,7 @@ dependencies = [
  "cc",
  "cmake",
  "openbox-domain",
+ "openbox-media-tools",
  "openbox-test-support",
  "pkg-config",
  "tempfile",
@@ -3629,6 +3630,7 @@ name = "openbox-audio"
 version = "0.1.0"
 dependencies = [
  "cpal",
+ "openbox-media-tools",
  "openbox-test-support",
  "tempfile",
 ]
@@ -3655,12 +3657,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "openbox-media-tools"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "which",
+]
+
+[[package]]
 name = "openbox-metadata"
 version = "0.1.0"
 dependencies = [
  "image",
  "lofty",
  "openbox-domain",
+ "openbox-media-tools",
  "openbox-storage",
  "openbox-test-support",
  "serde_json",
@@ -3678,6 +3689,7 @@ dependencies = [
  "miniz_oxide 0.9.1",
  "openbox-analysis",
  "openbox-domain",
+ "openbox-media-tools",
  "openbox-metadata",
  "openbox-storage",
  "openbox-test-support",
@@ -3703,6 +3715,7 @@ name = "openbox-test-support"
 version = "0.1.0"
 dependencies = [
  "baken-export",
+ "openbox-media-tools",
 ]
 
 [[package]]
