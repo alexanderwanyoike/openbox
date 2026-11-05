@@ -79,6 +79,26 @@ class PackageNativeTest(unittest.TestCase):
             (unpacked / "io.github.alexanderwanyoike.openbox.svg").is_file()
         )
 
+    def test_linux_packages_the_license_inventory_from_the_source_job(self):
+        notices = self.licenses / "AppImage"
+        notices.mkdir()
+        (notices / "source-inventory.txt").write_text("Preserve source-stage notices")
+        result = self.package("x86_64-unknown-linux-gnu")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        image = self.root / "out/openbox-x86_64-unknown-linux-gnu.AppImage"
+        subprocess.run(
+            [str(image), "--appimage-extract"],
+            cwd=self.root,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        packaged = self.root / "squashfs-root/usr/share/openbox/licenses/AppImage"
+        self.assertEqual(
+            (packaged / "source-inventory.txt").read_text(),
+            "Preserve source-stage notices",
+        )
+        self.assertTrue((packaged / "AppImage-runtime.txt").is_file())
+
     def test_old_linux_installs_keep_a_compatible_update_bridge(self):
         result = self.package("x86_64-unknown-linux-gnu")
         self.assertEqual(result.returncode, 0, result.stderr)
