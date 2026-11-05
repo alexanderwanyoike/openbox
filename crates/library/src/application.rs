@@ -494,6 +494,7 @@ mod tests {
         let usb = tempfile::tempdir().unwrap();
         let path = dir.path().join("music.wav");
         openbox_test_support::rhythm(&path);
+        let path = path.canonicalize().unwrap();
         let mut workspace = Workspace::load(dir.path().join("library.json")).unwrap();
         let id = workspace
             .library
