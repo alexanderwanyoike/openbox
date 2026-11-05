@@ -1,6 +1,6 @@
 use super::Message;
 use iced::{
-    Color, Element, Point, Rectangle, Renderer, Size, Theme, mouse,
+    Color, Element, Point, Rectangle, Renderer, Size, Theme, keyboard, mouse,
     widget::{
         Action,
         canvas::{self, Frame, Geometry, Path, Stroke},
@@ -45,6 +45,7 @@ struct Knob<'a> {
 struct State {
     drag: Option<(f32, f32)>,
     last_click: Option<Instant>,
+    modifiers: keyboard::Modifiers,
 }
 
 impl Knob<'_> {
@@ -91,6 +92,12 @@ impl canvas::Program<Message> for Knob<'_> {
     ) -> Option<Action<Message>> {
         let publish = |value| Action::publish((self.on_change)(value)).and_capture();
         match event {
+            canvas::Event::Window(iced::window::Event::Unfocused) => {
+                state.drag = None;
+                state.last_click = None;
+                state.modifiers = keyboard::Modifiers::default();
+                Some(Action::request_redraw())
+            }
             canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
                 if cursor.is_over(bounds) =>
             {
@@ -113,11 +120,27 @@ impl canvas::Program<Message> for Knob<'_> {
             {
                 Some(publish(self.default))
             }
+            canvas::Event::Keyboard(keyboard::Event::ModifiersChanged(modifiers)) => {
+                state.modifiers = *modifiers;
+                None
+            }
             canvas::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
                 let (initial, fraction) = state.drag?;
-                Some(publish(
-                    self.value(fraction + (initial - cursor.position()?.y) / 150.0),
-                ))
+                let distance = initial - cursor.position()?.y;
+                if distance.abs() > 2.0 {
+                    state.last_click = None;
+                }
+                let sensitivity = if state.modifiers.shift() {
+                    600.0
+                } else {
+                    150.0
+                };
+                let value = self.value(fraction + distance / sensitivity);
+                Some(if (value - self.value).abs() > self.step * 0.1 {
+                    publish(value)
+                } else {
+                    Action::capture()
+                })
             }
             canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
                 if state.drag.take().is_some() =>
@@ -143,10 +166,11 @@ impl canvas::Program<Message> for Knob<'_> {
         &self,
         state: &State,
         renderer: &Renderer,
-        _: &Theme,
+        theme: &Theme,
         bounds: Rectangle,
         cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
+        let colors = super::appearance::palette(theme);
         let mut frame = Frame::new(renderer, bounds.size());
         let center = Point::new(bounds.width / 2.0, bounds.height / 2.0);
         let point = |fraction: f32, radius: f32| {
@@ -166,9 +190,7 @@ impl canvas::Program<Message> for Knob<'_> {
         };
         frame.stroke(
             &arc(0.0, 1.0),
-            Stroke::default()
-                .with_width(2.0)
-                .with_color(super::view::LINE),
+            Stroke::default().with_width(2.0).with_color(colors.line),
         );
         let fraction = self.fraction(self.value);
         let neutral = self.fraction(self.default);
@@ -179,9 +201,9 @@ impl canvas::Program<Message> for Knob<'_> {
         frame.fill(
             &Path::circle(center, 10.5),
             if state.drag.is_some() || cursor.is_over(bounds) {
-                Color::from_rgb(0.24, 0.27, 0.31)
+                colors.line
             } else {
-                super::view::RAISED
+                colors.raised
             },
         );
         frame.stroke(
@@ -191,7 +213,7 @@ impl canvas::Program<Message> for Knob<'_> {
         frame.fill_rectangle(
             Point::new(center.x - 0.5, 0.0),
             Size::new(1.0, 2.0),
-            super::view::MUTED,
+            colors.muted,
         );
         vec![frame.into_geometry()]
     }
@@ -209,5 +231,96 @@ impl canvas::Program<Message> for Knob<'_> {
         } else {
             mouse::Interaction::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use canvas::Program;
+
+    #[test]
+    fn consecutive_drags_adjust_the_knob_without_becoming_a_double_click_reset() {
+        let knob = Knob {
+            range: 0.0..=1.0,
+            value: 0.8,
+            default: 0.8,
+            step: 0.01,
+            accent: Color::WHITE,
+            on_change: Box::new(|value| {
+                Message::Preview(super::super::preview::Event::Master(value))
+            }),
+        };
+        let mut state = State::default();
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(30.0, 30.0));
+        let cursor = |y| mouse::Cursor::Available(Point::new(15.0, y));
+        let press = canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let release = canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
+        assert!(
+            knob.update(&mut state, &press, bounds, cursor(15.0))
+                .unwrap()
+                .into_inner()
+                .0
+                .is_none()
+        );
+        let movement = canvas::Event::Mouse(mouse::Event::CursorMoved {
+            position: Point::new(15.0, 35.0),
+        });
+        assert!(
+            knob.update(&mut state, &movement, bounds, cursor(35.0))
+                .unwrap()
+                .into_inner()
+                .0
+                .is_some()
+        );
+        let _ = knob.update(&mut state, &release, bounds, cursor(35.0));
+        assert!(
+            knob.update(&mut state, &press, bounds, cursor(15.0))
+                .unwrap()
+                .into_inner()
+                .0
+                .is_none()
+        );
+    }
+    #[test]
+    fn losing_window_focus_cancels_knob_drag_and_double_click_state() {
+        let knob = Knob {
+            range: 0.0..=1.0,
+            value: 0.8,
+            default: 0.5,
+            step: 0.01,
+            accent: Color::WHITE,
+            on_change: Box::new(|value| {
+                Message::Preview(super::super::preview::Event::Master(value))
+            }),
+        };
+        let bounds = Rectangle::new(Point::ORIGIN, Size::new(30.0, 30.0));
+        let cursor = |y| mouse::Cursor::Available(Point::new(15.0, y));
+        let press = canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let mut state = State::default();
+        let _ = knob.update(&mut state, &press, bounds, cursor(15.0));
+        let _ = knob.update(
+            &mut state,
+            &canvas::Event::Window(iced::window::Event::Unfocused),
+            bounds,
+            mouse::Cursor::Unavailable,
+        );
+        let moved = knob.update(
+            &mut state,
+            &canvas::Event::Mouse(mouse::Event::CursorMoved {
+                position: Point::new(15.0, 70.0),
+            }),
+            bounds,
+            cursor(70.0),
+        );
+        assert!(
+            moved.and_then(|action| action.into_inner().0).is_none(),
+            "Focus loss must cancel a knob gesture"
+        );
+        let next = knob.update(&mut state, &press, bounds, cursor(15.0));
+        assert!(
+            next.and_then(|action| action.into_inner().0).is_none(),
+            "The first new press must start a drag, not reset the value"
+        );
     }
 }

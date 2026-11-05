@@ -1,0 +1,22 @@
+{
+  "name": "openbox-site",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "yarn@1.22.22",
+  "scripts": {
+    "site:dev": "python3 -m http.server 4173 --bind 127.0.0.1 --directory site",
+    "site:build": "node scripts/build-site.mjs",
+    "site:test": "playwright test --config site/playwright.config.mjs",
+    "format:check": "prettier --check site scripts/build-site.mjs package.json eslint.config.mjs",
+    "lint": "eslint site scripts/build-site.mjs",
+    "verify": "yarn format:check && yarn lint && yarn site:test && yarn site:build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@playwright/test": "^1.64.1",
+    "eslint": "^10.14.0",
+    "prettier": "^3.9.10"
+  }
+}

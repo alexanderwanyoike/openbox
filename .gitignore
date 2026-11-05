@@ -1,2 +1,12 @@
 /target/
 /.prototype/
+
+/target
+/node_modules/
+/site-dist/
+/test-results/
+/site/artifacts/
+/.native/
+
+__pycache__/
+*.py[cod]

@@ -3,16 +3,21 @@ name = "openbox-analysis"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "MIT AND GPL-2.0-or-later"
 publish = false
 
 [dependencies]
+openbox-media-tools.workspace = true
 openbox-domain.workspace = true
 aubio = { package = "bliss-audio-aubio-rs", version = "0.2.4", features = ["static", "builtin"] }
+
+[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
+aubio = { package = "bliss-audio-aubio-rs", version = "0.2.4", features = ["bindgen"] }
 
 [build-dependencies]
 cc = "1"
 pkg-config = "0.3"
+cmake = "0.1"
 
 [dev-dependencies]
 tempfile.workspace = true

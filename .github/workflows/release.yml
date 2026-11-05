@@ -1,0 +1,149 @@
+name: Native release packages
+on:
+  pull_request:
+    branches: [dev, main]
+    paths:
+      - '.github/workflows/release.yml'
+      - '.github/actions/native-setup/**'
+      - 'scripts/package-native.py'
+      - 'scripts/collect-licenses.py'
+      - 'scripts/tests/**'
+      - 'resources/icons/openbox.icns'
+  push:
+    tags: ['v*']
+concurrency:
+  group: native-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+env:
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_TEST_DEBUG: '0'
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.96.1
+      - uses: Swatinem/rust-cache@v2
+      - uses: ./.github/actions/native-setup
+        with:
+          install-packages: 'false'
+      - name: Require a stable version from main for publication
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          version=$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(p["version"] for p in d["packages"] if p["name"]=="openbox"))')
+          test "$GITHUB_REF_NAME" = "v$version"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+      - name: Check release tools
+        run: |
+          python3 -m pip install ruff==0.15.6
+          ruff check scripts/package-native.py scripts/collect-licenses.py scripts/tests
+          ruff format --check scripts/package-native.py scripts/collect-licenses.py scripts/tests
+          python3 -m unittest discover -s scripts/tests -v
+      - name: Assemble corresponding source and license inventory
+        shell: bash
+        run: |
+          mkdir -p release/source/.cargo release/source/native
+          git archive HEAD | tar -x -C release/source
+          (cd release/source && cargo vendor --locked --versioned-dirs vendor > .cargo/config.toml)
+          cp -R "$OPENBOX_FFTW_SOURCE" release/source/native/fftw-3.3.10
+          python3 scripts/collect-licenses.py --vendor release/source/vendor --fftw "$OPENBOX_FFTW_SOURCE" --output release/licenses
+          (cd release/source && cargo metadata --locked --offline --format-version 1 > /dev/null)
+          tar -czf release/openbox-source.tar.gz -C release/source .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distribution-source
+          path: |
+            release/openbox-source.tar.gz
+            release/licenses/
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2025
+            target: x86_64-pc-windows-msvc
+          - os: macos-15
+            target: aarch64-apple-darwin
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.96.1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - uses: ./.github/actions/native-setup
+      - name: Build release executable
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Verify Windows desktop executable metadata
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          python -m pip install pefile==2024.8.26
+          python - <<'PYTHON'
+          import pefile
+          executable = pefile.PE('target/x86_64-pc-windows-msvc/release/openbox.exe')
+          assert executable.OPTIONAL_HEADER.Subsystem == 2, 'Openbox must launch as a GUI application without a console'
+          resources = executable.DIRECTORY_ENTRY_RESOURCE.entries
+          assert any(entry.id == 14 for entry in resources), 'Openbox must embed its own application icon'
+          PYTHON
+      - name: Check native startup
+        shell: bash
+        run: |
+          target/${{ matrix.target }}/release/openbox --version
+          target/${{ matrix.target }}/release/openbox --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executable-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/openbox
+            target/${{ matrix.target }}/release/openbox.exe
+  package:
+    needs: [source, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Assemble the four native downloads
+        shell: bash
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml","rb"))["workspace"]["package"]["version"])')
+          for target in x86_64-unknown-linux-gnu x86_64-pc-windows-msvc aarch64-apple-darwin x86_64-apple-darwin; do
+            binary="artifacts/executable-$target/openbox"
+            if [[ "$target" == *windows* ]]; then binary="$binary.exe"; fi
+            python3 scripts/package-native.py --binary "$binary" --target "$target" --version "$version" --licenses artifacts/distribution-source/licenses --output release
+          done
+          cp artifacts/distribution-source/openbox-source.tar.gz release/
+          (cd release && sha256sum openbox-*.tar.gz openbox-*.zip > SHA256SUMS && sha256sum --check SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: release/
+  draft:
+    if: github.event_name == 'push'
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: release
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" release/openbox-*.tar.gz release/openbox-*.zip release/SHA256SUMS --draft --verify-tag --generate-notes

@@ -2,11 +2,31 @@ use super::background;
 use iced::Task;
 use openbox_audio::{Band, Clip, DeckControl, DeckId, Engine, Snapshot};
 use openbox_domain::Track;
+use std::time::Instant;
+
+pub(super) fn position_at(
+    snapshot: openbox_audio::DeckSnapshot,
+    sampled_at: Instant,
+    now: Instant,
+) -> f64 {
+    let elapsed = if snapshot.playing {
+        if let Some(elapsed) = now.checked_duration_since(sampled_at) {
+            elapsed.as_secs_f64() * snapshot.rate
+        } else {
+            -sampled_at.duration_since(now).as_secs_f64() * snapshot.rate
+        }
+    } else {
+        0.0
+    };
+    (snapshot.position + elapsed).clamp(0.0, snapshot.duration)
+}
 
 #[derive(Debug, Clone)]
 pub enum Event {
     Toggle,
     Retry,
+    DismissError,
+    ToggleErrorDetails,
     Load(DeckId),
     Ready(Result<Engine, String>),
     Loaded(DeckId, u64, Result<Clip, String>),
@@ -15,6 +35,8 @@ pub enum Event {
     Master(f32),
     Zoom(DeckId, f64),
     ResetMixer,
+    SetLeader(DeckId),
+    Sync(DeckId),
 }
 
 #[derive(Clone)]
@@ -43,7 +65,7 @@ impl Default for Deck {
             fader: 1.0,
             eq: [0.0; 3],
             pitch: 0.0,
-            zoom: 16.0,
+            zoom: 4.0,
         }
     }
 }
@@ -55,9 +77,12 @@ pub(super) struct Preview {
     pub engine: Option<Engine>,
     pub decks: [Deck; 2],
     pub snapshot: Snapshot,
+    pub leader: DeckId,
+    pub sync_error: Option<String>,
     pub crossfade: f32,
     pub master: f32,
-    pub error: Option<String>,
+    pub error: Option<super::preview_error::Failure>,
+    pub error_details: bool,
 }
 
 impl Default for Preview {
@@ -68,9 +93,12 @@ impl Default for Preview {
             engine: None,
             decks: [Deck::default(), Deck::default()],
             snapshot: Snapshot::default(),
+            leader: DeckId::A,
             crossfade: 0.5,
             master: 0.8,
+            sync_error: None,
             error: None,
+            error_details: false,
         }
     }
 }
@@ -86,20 +114,61 @@ impl Preview {
         }
         let generation = deck.generation;
         Task::perform(
-            background(move || Clip::decode(&track.path)),
+            background(move || Clip::decode(&track.path).map_err(|error| error.to_string())),
             move |result| Event::Loaded(id, generation, result),
         )
     }
 
     pub fn tick(&mut self) {
-        if let Some(engine) = &self.engine {
+        if let Some(engine) = self.engine.clone() {
             self.snapshot = engine.snapshot();
+            let other = if self.leader == DeckId::A {
+                DeckId::B
+            } else {
+                DeckId::A
+            };
+            if !self.snapshot.decks[self.leader.index()].playing
+                && self.snapshot.decks[other.index()].playing
+            {
+                self.set_leader(other);
+                self.snapshot = engine.snapshot();
+            }
+            for (deck, snapshot) in self.decks.iter_mut().zip(self.snapshot.decks) {
+                deck.pitch = (snapshot.pitch_rate - 1.0) * 100.0;
+            }
             if let Some(error) = engine.take_error() {
-                self.error = Some(error);
+                self.error = Some(super::preview_error::Failure::output(error));
+                self.error_details = false;
                 self.engine = None;
                 for deck in &mut self.snapshot.decks {
                     deck.playing = false;
                 }
+            }
+        }
+    }
+
+    fn set_leader(&mut self, id: DeckId) {
+        if self.leader == id {
+            return;
+        }
+        self.leader = id;
+        if let Some(engine) = &self.engine {
+            let active = engine
+                .snapshot()
+                .decks
+                .iter()
+                .any(|deck| deck.sync_leader.is_some());
+            engine.release_sync(id);
+            if active {
+                let other = if id == DeckId::A {
+                    DeckId::B
+                } else {
+                    DeckId::A
+                };
+                self.sync_error = engine
+                    .sync_to(other, id)
+                    .err()
+                    .map(|error| error.to_string());
             }
         }
     }
@@ -112,6 +181,11 @@ impl Preview {
                     return self.start();
                 }
             }
+            Event::DismissError => {
+                self.error = None;
+                self.error_details = false;
+            }
+            Event::ToggleErrorDetails => self.error_details = !self.error_details,
             Event::Retry if !self.starting => {
                 self.engine = None;
                 return self.start();
@@ -124,6 +198,11 @@ impl Preview {
                             let deck = &self.decks[id.index()];
                             if let Some(clip) = &deck.clip {
                                 engine.load(id, clip.clone());
+                                if let Some(track) = &deck.track
+                                    && let Ok(grid) = beat_grid(track)
+                                {
+                                    engine.set_beat_grid(id, grid);
+                                }
                             }
                             engine.control(id, DeckControl::Gain(deck.gain));
                             engine.control(id, DeckControl::Fader(deck.fader));
@@ -137,7 +216,10 @@ impl Preview {
                         self.engine = Some(engine);
                         self.error = None;
                     }
-                    Err(error) => self.error = Some(error),
+                    Err(error) => {
+                        self.error = Some(super::preview_error::Failure::output(error));
+                        self.error_details = false;
+                    }
                 }
             }
             Event::Loaded(id, generation, result) => {
@@ -150,6 +232,11 @@ impl Preview {
                     Ok(clip) => {
                         if let Some(engine) = &self.engine {
                             engine.load(id, clip.clone());
+                            if let Some(track) = &deck.pending
+                                && let Ok(grid) = beat_grid(track)
+                            {
+                                engine.set_beat_grid(id, grid);
+                            }
                         }
                         deck.track = deck.pending.take();
                         deck.clip = Some(clip);
@@ -165,7 +252,8 @@ impl Preview {
                     }
                     Err(error) => {
                         deck.pending = None;
-                        self.error = Some(error);
+                        self.error = Some(super::preview_error::Failure::track(error));
+                        self.error_details = false;
                     }
                 }
             }
@@ -182,6 +270,23 @@ impl Preview {
                     engine.control(id, control);
                     self.snapshot = engine.snapshot();
                 }
+                self.tick();
+            }
+            Event::SetLeader(id) => {
+                self.set_leader(id);
+                self.tick();
+            }
+            Event::Sync(id) if id != self.leader => {
+                if let Some(engine) = &self.engine {
+                    if self.snapshot.decks[id.index()].sync_leader.is_some() {
+                        engine.release_sync(id);
+                    } else if let Err(error) = engine.sync_to(id, self.leader) {
+                        self.sync_error = Some(error.to_string());
+                        return Task::none();
+                    }
+                    self.sync_error = None;
+                    self.tick();
+                }
             }
             Event::Crossfade(value) => {
                 self.crossfade = value;
@@ -195,7 +300,7 @@ impl Preview {
                     engine.master(value);
                 }
             }
-            Event::Zoom(id, span) => self.decks[id.index()].zoom = span.clamp(4.0, 64.0),
+            Event::Zoom(id, span) => self.decks[id.index()].zoom = span.clamp(1.0, 64.0),
             Event::ResetMixer => {
                 for id in [DeckId::A, DeckId::B] {
                     let _ = self.update(Event::Control(id, DeckControl::Gain(0.8)));
@@ -219,10 +324,80 @@ impl Preview {
     }
 }
 
+pub(super) fn beat_grid(
+    track: &Track,
+) -> Result<openbox_audio::BeatGrid, openbox_audio::SyncError> {
+    let bpm = track
+        .details
+        .bpm
+        .ok_or(openbox_audio::SyncError::MissingGrid)?;
+    let analysis = track
+        .details
+        .analysis
+        .as_ref()
+        .ok_or(openbox_audio::SyncError::MissingGrid)?;
+    openbox_audio::BeatGrid::new(
+        bpm,
+        analysis
+            .beats
+            .iter()
+            .map(|beat| beat.time_seconds)
+            .collect(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use openbox_domain::Library;
+
+    #[test]
+    fn buffered_audio_snapshots_describe_the_same_display_position() {
+        let now = Instant::now();
+        let first = openbox_audio::DeckSnapshot {
+            position: 1.08,
+            duration: 10.0,
+            playing: true,
+            rate: 1.0,
+            ..Default::default()
+        };
+        let second = openbox_audio::DeckSnapshot {
+            position: 1.16,
+            ..first
+        };
+        let displayed = now + std::time::Duration::from_millis(100);
+        let a = position_at(first, now + std::time::Duration::from_millis(80), displayed);
+        let b = position_at(
+            second,
+            now + std::time::Duration::from_millis(160),
+            displayed,
+        );
+        assert!(
+            (a - b).abs() < 0.000001,
+            "New buffer snapped the waveform: {a} -> {b}"
+        );
+    }
+
+    #[test]
+    fn visual_position_advances_between_audio_snapshots_and_stops_at_pause_and_end() {
+        let at = Instant::now();
+        let mut snapshot = openbox_audio::DeckSnapshot {
+            position: 10.0,
+            duration: 12.0,
+            playing: true,
+            rate: 1.08,
+            ..Default::default()
+        };
+        let later = at + std::time::Duration::from_millis(50);
+        assert!((position_at(snapshot, at, later) - 10.054).abs() < 0.000001);
+        snapshot.playing = false;
+        assert_eq!(position_at(snapshot, at, later), 10.0);
+        snapshot.playing = true;
+        assert_eq!(
+            position_at(snapshot, at, at + std::time::Duration::from_secs(5)),
+            12.0
+        );
+    }
 
     #[test]
     fn loading_another_song_keeps_a_stale_decoder_result_out_of_the_deck() {
