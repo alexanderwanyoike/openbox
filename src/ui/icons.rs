@@ -73,7 +73,16 @@ pub(super) fn hint<'a>(
     )
     .style(|theme| {
         let p = super::appearance::palette(theme);
-        container::Style { background: Some(p.raised.into()), text_color: Some(p.ink), border: iced::Border { color: p.line, width: 1.0, radius: 6.0.into() }, ..Default::default() }
+        container::Style {
+            background: Some(p.raised.into()),
+            text_color: Some(p.ink),
+            border: iced::Border {
+                color: p.line,
+                width: 1.0,
+                radius: 6.0.into(),
+            },
+            ..Default::default()
+        }
     })
     .delay(Duration::from_millis(500))
     .gap(8)
@@ -103,7 +112,9 @@ impl canvas::Program<Message> for Symbol {
         _: mouse::Cursor,
     ) -> Vec<Geometry> {
         let colors = super::appearance::palette(theme);
-        let color = if matches!(self.icon, Icon::Warning) { colors.danger } else if matches!(self.icon, Icon::Brand) {
+        let color = if matches!(self.icon, Icon::Warning) {
+            colors.danger
+        } else if matches!(self.icon, Icon::Brand) {
             colors.accent
         } else if self.enabled {
             colors.ink
@@ -122,9 +133,12 @@ impl canvas::Program<Message> for Symbol {
         };
         match self.icon {
             Icon::Warning => {
-                line(&mut frame, &[(8.0,2.0),(15.0,14.0),(1.0,14.0),(8.0,2.0)]);
-                line(&mut frame, &[(8.0,6.0),(8.0,9.0)]);
-                line(&mut frame, &[(8.0,11.0),(8.0,12.0)]);
+                line(
+                    &mut frame,
+                    &[(8.0, 2.0), (15.0, 14.0), (1.0, 14.0), (8.0, 2.0)],
+                );
+                line(&mut frame, &[(8.0, 6.0), (8.0, 9.0)]);
+                line(&mut frame, &[(8.0, 11.0), (8.0, 12.0)]);
             }
 
             Icon::Brand => {

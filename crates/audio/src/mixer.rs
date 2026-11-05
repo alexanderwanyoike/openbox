@@ -1,5 +1,5 @@
-use std::time::Instant;
 use crate::Clip;
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeckId {
@@ -57,7 +57,17 @@ pub struct DeckSnapshot {
 }
 
 impl Default for DeckSnapshot {
-    fn default() -> Self { Self { sampled_at: Instant::now(), position: 0.0, duration: 0.0, playing: false, rate: 0.0, peak: 0.0, cue: 0.0 } }
+    fn default() -> Self {
+        Self {
+            sampled_at: Instant::now(),
+            position: 0.0,
+            duration: 0.0,
+            playing: false,
+            rate: 0.0,
+            peak: 0.0,
+            cue: 0.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -137,7 +147,12 @@ impl Mixer {
 
     pub fn control(&mut self, id: DeckId, control: DeckControl) {
         let deck = &mut self.decks[id.index()];
-        if matches!(control, DeckControl::PlayPause | DeckControl::Seek(_) | DeckControl::Cue | DeckControl::SetCue) { deck.sampled_at = Instant::now(); }
+        if matches!(
+            control,
+            DeckControl::PlayPause | DeckControl::Seek(_) | DeckControl::Cue | DeckControl::SetCue
+        ) {
+            deck.sampled_at = Instant::now();
+        }
         match control {
             DeckControl::PlayPause if deck.clip.is_some() => {
                 if deck
@@ -277,7 +292,10 @@ impl Mixer {
         self.set_render_time(Instant::now());
     }
     pub(crate) fn set_render_time(&mut self, sampled_at: Instant) {
-        for deck in &mut self.decks { if deck.playing { deck.sampled_at = sampled_at; } }
+        for deck in &mut self.decks {
+            if deck.playing {
+                deck.sampled_at = sampled_at;
+            }
+        }
     }
-
 }

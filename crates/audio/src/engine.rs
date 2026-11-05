@@ -129,8 +129,13 @@ fn build<T: SizedSample + FromSample<f32>>(
             };
             let started = std::time::Instant::now();
             let timing = info.timestamp();
-            let lead = timing.playback.duration_since(&timing.callback).unwrap_or_default();
-            let duration = std::time::Duration::from_secs_f64(data.len() as f64 / channels as f64 / f64::from(rate));
+            let lead = timing
+                .playback
+                .duration_since(&timing.callback)
+                .unwrap_or_default();
+            let duration = std::time::Duration::from_secs_f64(
+                data.len() as f64 / channels as f64 / f64::from(rate),
+            );
             for chunk in data.chunks_mut(4096 / channels * channels) {
                 let rendered = &mut scratch[..chunk.len()];
                 mixer.render(rendered, rate, channels);

@@ -150,7 +150,11 @@ impl canvas::Program<Message> for Wave<'_> {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-        let mode = if theme.extended_palette().is_dark { Mode::Dark } else { Mode::Light };
+        let mode = if theme.extended_palette().is_dark {
+            Mode::Dark
+        } else {
+            Mode::Light
+        };
         let colors = self.theme.for_mode(mode);
         let background = colors.bg;
         frame.fill_rectangle(Point::ORIGIN, bounds.size(), background);
@@ -176,7 +180,9 @@ impl canvas::Program<Message> for Wave<'_> {
         if self.overview {
             let mut source = state.source.borrow_mut();
             if source.as_ref().is_none_or(|(old, theme, old_mode)| {
-                *theme != self.theme || *old_mode != mode || !Arc::ptr_eq(&old.peaks, &waveform.peaks)
+                *theme != self.theme
+                    || *old_mode != mode
+                    || !Arc::ptr_eq(&old.peaks, &waveform.peaks)
             }) {
                 state.overview.clear();
                 *source = Some((waveform.clone(), self.theme, mode));
@@ -429,7 +435,10 @@ pub(super) fn preview(theme: WaveformTheme) -> iced::Element<'static, Message> {
 struct Preview(WaveformTheme);
 
 #[derive(Default)]
-struct PreviewCache { geometry: canvas::Cache, mode: Cell<Option<Mode>> }
+struct PreviewCache {
+    geometry: canvas::Cache,
+    mode: Cell<Option<Mode>>,
+}
 
 impl canvas::Program<Message> for Preview {
     type State = PreviewCache;
@@ -458,8 +467,14 @@ impl canvas::Program<Message> for Preview {
                 .collect();
             openbox_audio::Clip::from_pcm(samples, 44100).unwrap()
         });
-        let mode = if theme.extended_palette().is_dark { Mode::Dark } else { Mode::Light };
-        if cache.mode.replace(Some(mode)) != Some(mode) { cache.geometry.clear(); }
+        let mode = if theme.extended_palette().is_dark {
+            Mode::Dark
+        } else {
+            Mode::Light
+        };
+        if cache.mode.replace(Some(mode)) != Some(mode) {
+            cache.geometry.clear();
+        }
         let colors = self.0.for_mode(mode);
         vec![cache.geometry.draw(renderer, bounds.size(), |frame| {
             frame.fill_rectangle(Point::ORIGIN, bounds.size(), colors.bg);
@@ -489,8 +504,28 @@ mod tests {
         use canvas::Program;
         let clip = openbox_audio::Clip::from_pcm(vec![1000; 44100 * 2 * 2], 44100).unwrap();
         let now = Instant::now();
-        let wave = Wave { theme: WaveformTheme::Classic, waveform: Some(&clip.waveform), deck: DeckId::A, position: 0.0, playing: true, rate: 1.0, sampled_at: now, cue: 0.0, span: 4.0, overview: false, color: Color::WHITE, beats: &[] };
-        let action = wave.update(&mut State::default(), &canvas::Event::Window(iced::window::Event::RedrawRequested(now)), Rectangle::new(Point::ORIGIN,Size::new(560.0,162.0)), mouse::Cursor::Unavailable).unwrap();
+        let wave = Wave {
+            theme: WaveformTheme::Classic,
+            waveform: Some(&clip.waveform),
+            deck: DeckId::A,
+            position: 0.0,
+            playing: true,
+            rate: 1.0,
+            sampled_at: now,
+            cue: 0.0,
+            span: 4.0,
+            overview: false,
+            color: Color::WHITE,
+            beats: &[],
+        };
+        let action = wave
+            .update(
+                &mut State::default(),
+                &canvas::Event::Window(iced::window::Event::RedrawRequested(now)),
+                Rectangle::new(Point::ORIGIN, Size::new(560.0, 162.0)),
+                mouse::Cursor::Unavailable,
+            )
+            .unwrap();
         let (message, request, _) = action.into_inner();
         assert!(message.is_none());
         assert_eq!(request, iced::window::RedrawRequest::NextFrame);

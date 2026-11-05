@@ -10,7 +10,11 @@ pub(super) fn position_at(
     now: Instant,
 ) -> f64 {
     let elapsed = if snapshot.playing {
-        if let Some(elapsed) = now.checked_duration_since(sampled_at) { elapsed.as_secs_f64() * snapshot.rate } else { -sampled_at.duration_since(now).as_secs_f64() * snapshot.rate }
+        if let Some(elapsed) = now.checked_duration_since(sampled_at) {
+            elapsed.as_secs_f64() * snapshot.rate
+        } else {
+            -sampled_at.duration_since(now).as_secs_f64() * snapshot.rate
+        }
     } else {
         0.0
     };
@@ -131,7 +135,10 @@ impl Preview {
                     return self.start();
                 }
             }
-            Event::DismissError => { self.error = None; self.error_details = false; }
+            Event::DismissError => {
+                self.error = None;
+                self.error_details = false;
+            }
             Event::ToggleErrorDetails => self.error_details = !self.error_details,
             Event::Retry if !self.starting => {
                 self.engine = None;
@@ -158,7 +165,10 @@ impl Preview {
                         self.engine = Some(engine);
                         self.error = None;
                     }
-                    Err(error) => { self.error = Some(super::preview_error::Failure::output(error)); self.error_details = false; },
+                    Err(error) => {
+                        self.error = Some(super::preview_error::Failure::output(error));
+                        self.error_details = false;
+                    }
                 }
             }
             Event::Loaded(id, generation, result) => {
@@ -249,12 +259,28 @@ mod tests {
     #[test]
     fn buffered_audio_snapshots_describe_the_same_display_position() {
         let now = Instant::now();
-        let first = openbox_audio::DeckSnapshot { position: 1.08, duration: 10.0, playing: true, rate: 1.0, ..Default::default() };
-        let second = openbox_audio::DeckSnapshot { position: 1.16, ..first };
+        let first = openbox_audio::DeckSnapshot {
+            position: 1.08,
+            duration: 10.0,
+            playing: true,
+            rate: 1.0,
+            ..Default::default()
+        };
+        let second = openbox_audio::DeckSnapshot {
+            position: 1.16,
+            ..first
+        };
         let displayed = now + std::time::Duration::from_millis(100);
         let a = position_at(first, now + std::time::Duration::from_millis(80), displayed);
-        let b = position_at(second, now + std::time::Duration::from_millis(160), displayed);
-        assert!((a - b).abs() < 0.000001, "New buffer snapped the waveform: {a} -> {b}");
+        let b = position_at(
+            second,
+            now + std::time::Duration::from_millis(160),
+            displayed,
+        );
+        assert!(
+            (a - b).abs() < 0.000001,
+            "New buffer snapped the waveform: {a} -> {b}"
+        );
     }
 
     #[test]

@@ -1,16 +1,14 @@
 use super::{
     App, Message,
+    faders::{self, Kind},
     icons::{self, Icon},
     preview::Event,
     view::{self, action, panel},
-    faders::{self, Kind},
     waveform::Wave,
 };
 use iced::{
     Alignment, Border, Color, Element, Font, Length, Theme,
-    widget::{
-        Space, canvas, column, container, row, text, vertical_slider,
-    },
+    widget::{Space, canvas, column, container, row, text, vertical_slider},
 };
 use openbox_audio::{Band, DeckControl, DeckId};
 
@@ -275,7 +273,9 @@ impl App {
                 .size(9)
                 .font(Font::MONOSPACE)
                 .color(colors.muted),
-            faders::horizontal(Kind::Pitch, deck.pitch, accent, move |pitch| control(DeckControl::Rate(1.0 + pitch / 100.0))),
+            faders::horizontal(Kind::Pitch, deck.pitch, accent, move |pitch| control(
+                DeckControl::Rate(1.0 + pitch / 100.0)
+            )),
             text(format!("{:+.2}%", deck.pitch))
                 .size(11)
                 .font(Font::MONOSPACE)
@@ -356,25 +356,38 @@ impl App {
                     .align_y(Alignment::Center),
                 );
             }
-            controls.push(
-                column![
-                    row![
-                        canvas(FaderScale).width(15).height(94),
-                        icons::hint(
-                            vertical_slider(0.0..=1.0, deck.fader, move |value| {
-                                Message::Preview(Event::Control(id, DeckControl::Fader(value)))
-                            })
-                            .default(1.0).step(0.01).shift_step(0.001)
-                            .width(30).height(94)
-                            .style(move |theme, status| faders::vertical_style(theme, status, accent)),
-                            "Channel volume · Ctrl-click to reset · Shift for fine adjustment"
-                        ),
-                        channel_meter(state.decks[id.index()].peak, colors),
-                    ].spacing(7).align_y(Alignment::Center),
-                    text(format!("LEVEL {:3.0}%", deck.fader * 100.0))
-                        .size(8).font(Font::MONOSPACE).color(colors.muted),
-                ].spacing(4).padding([5, 8])
-            ).width(Length::Fill)
+            controls
+                .push(
+                    column![
+                        row![
+                            canvas(FaderScale).width(15).height(94),
+                            icons::hint(
+                                vertical_slider(0.0..=1.0, deck.fader, move |value| {
+                                    Message::Preview(Event::Control(id, DeckControl::Fader(value)))
+                                })
+                                .default(1.0)
+                                .step(0.01)
+                                .shift_step(0.001)
+                                .width(30)
+                                .height(94)
+                                .style(move |theme, status| faders::vertical_style(
+                                    theme, status, accent
+                                )),
+                                "Channel volume · Ctrl-click to reset · Shift for fine adjustment"
+                            ),
+                            channel_meter(state.decks[id.index()].peak, colors),
+                        ]
+                        .spacing(7)
+                        .align_y(Alignment::Center),
+                        text(format!("LEVEL {:3.0}%", deck.fader * 100.0))
+                            .size(8)
+                            .font(Font::MONOSPACE)
+                            .color(colors.muted),
+                    ]
+                    .spacing(4)
+                    .padding([5, 8]),
+                )
+                .width(Length::Fill)
         };
         column![
             row![
@@ -403,7 +416,12 @@ impl App {
             .spacing(16),
             row![
                 text("MASTER").size(8).color(colors.muted),
-                faders::horizontal(Kind::Master, f64::from(self.preview.master), colors.accent, |value| Message::Preview(Event::Master(value as f32))),
+                faders::horizontal(
+                    Kind::Master,
+                    f64::from(self.preview.master),
+                    colors.accent,
+                    |value| Message::Preview(Event::Master(value as f32))
+                ),
                 text(if state.clipped { "CLIP" } else { "OUT" })
                     .size(8)
                     .color(if state.clipped {
@@ -424,7 +442,12 @@ impl App {
             ),
             row![
                 text("A").size(9).color(colors.accent),
-                faders::horizontal(Kind::Crossfade, f64::from(self.preview.crossfade), colors.accent, |value| Message::Preview(Event::Crossfade(value as f32))),
+                faders::horizontal(
+                    Kind::Crossfade,
+                    f64::from(self.preview.crossfade),
+                    colors.accent,
+                    |value| Message::Preview(Event::Crossfade(value as f32))
+                ),
                 text("B").size(9).color(colors.deck_b)
             ]
             .spacing(8)
@@ -469,17 +492,38 @@ fn channel_meter(peak: f32, colors: super::appearance::Palette) -> Element<'stat
 }
 
 fn meter(value: f32, accent: Color) -> Element<'static, Message> {
-    canvas(OutputMeter { value, accent }).width(Length::Fill).height(3).into()
+    canvas(OutputMeter { value, accent })
+        .width(Length::Fill)
+        .height(3)
+        .into()
 }
-struct OutputMeter { value: f32, accent: Color }
+struct OutputMeter {
+    value: f32,
+    accent: Color,
+}
 impl canvas::Program<Message> for OutputMeter {
     type State = ();
-    fn draw(&self, _: &(), renderer: &iced::Renderer, theme: &Theme, bounds: iced::Rectangle, _: iced::mouse::Cursor) -> Vec<canvas::Geometry> {
+    fn draw(
+        &self,
+        _: &(),
+        renderer: &iced::Renderer,
+        theme: &Theme,
+        bounds: iced::Rectangle,
+        _: iced::mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
         let mut frame = canvas::Frame::new(renderer, bounds.size());
         let p = super::appearance::palette(theme);
         let width = (bounds.width - 23.0 * 2.0) / 24.0;
         for n in 0..24 {
-            frame.fill_rectangle(iced::Point::new(n as f32 * (width + 2.0),0.0), iced::Size::new(width,bounds.height), if self.value > n as f32 / 24.0 { self.accent } else { p.line });
+            frame.fill_rectangle(
+                iced::Point::new(n as f32 * (width + 2.0), 0.0),
+                iced::Size::new(width, bounds.height),
+                if self.value > n as f32 / 24.0 {
+                    self.accent
+                } else {
+                    p.line
+                },
+            );
         }
         vec![frame.into_geometry()]
     }

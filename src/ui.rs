@@ -1,11 +1,13 @@
 pub mod appearance;
 mod browser;
 mod chrome;
-mod icons;
 mod faders;
+mod icons;
 mod knob;
 mod navigation;
 mod palette;
+#[cfg(test)]
+mod player_tests;
 mod players;
 mod preview;
 mod preview_error;
@@ -16,15 +18,13 @@ mod selection;
 mod settings;
 #[cfg(test)]
 mod shell_tests;
-#[cfg(test)]
-mod test_render;
+mod surfaces;
 #[cfg(test)]
 mod table_tests;
 #[cfg(test)]
-mod tooltip_tests;
+mod test_render;
 #[cfg(test)]
-mod player_tests;
-mod surfaces;
+mod tooltip_tests;
 mod view;
 mod waveform;
 
