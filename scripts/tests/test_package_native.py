@@ -74,6 +74,22 @@ class PackageNativeTest(unittest.TestCase):
             (unpacked / "io.github.alexanderwanyoike.openbox.svg").is_file()
         )
 
+    def test_old_linux_installs_keep_a_compatible_update_bridge(self):
+        result = self.package("x86_64-unknown-linux-gnu")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        bridge = self.root / "out/openbox-x86_64-unknown-linux-gnu.tar.gz"
+        self.assertTrue(
+            bridge.is_file(), "The 0.1.1 updater still requests the legacy asset"
+        )
+        with tarfile.open(bridge) as archive:
+            archive.extractall(self.root / "legacy", filter="data")
+        self.assertEqual(
+            subprocess.check_output(
+                [str(self.root / "legacy/openbox"), "--version"], text=True
+            ),
+            "openbox 0.1.1\n",
+        )
+
     def test_windows_zip_contains_the_executable_and_distribution_notices(self):
         result = self.package("x86_64-pc-windows-msvc")
         self.assertEqual(result.returncode, 0, result.stderr)
