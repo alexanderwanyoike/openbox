@@ -914,6 +914,46 @@ mod tests {
     }
 
     #[test]
+    fn new_exports_include_modern_three_band_waveforms_without_changing_existing_assets() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        openbox_test_support::rekordbox_usb(usb.path());
+        let original = openbox_test_support::files(usb.path());
+        let (library, playlist, _) = collection(music.path());
+        export(&library, &[playlist], usb.path()).unwrap();
+        let files = openbox_test_support::files(usb.path());
+        let dat = files
+            .keys()
+            .find(|p| {
+                p.extension().is_some_and(|e| e == "DAT")
+                    && !p.to_string_lossy().contains("Original")
+            })
+            .unwrap();
+        let modern = usb.path().join(dat.with_extension("2EX"));
+        assert!(
+            modern.is_file(),
+            "Modern players need the generated .2EX analysis file"
+        );
+        let file = ANLZ::read_be(&mut std::fs::File::open(&modern).unwrap()).unwrap();
+        for tag in [*b"PWV7", *b"PWV6", *b"PWVC"] {
+            assert!(
+                file.sections.iter().any(|section| {
+                    section.header.kind == rekordcrate::anlz::ContentKind::Unknown(tag)
+                }),
+                "Missing modern analysis section {tag:?}"
+            );
+        }
+        for (path, bytes) in original {
+            if path.starts_with("Contents") || path.starts_with("PIONEER/USBANLZ") {
+                assert_eq!(std::fs::read(usb.path().join(path)).unwrap(), bytes);
+            }
+        }
+        let prepared = std::fs::read(&modern).unwrap();
+        export(&library, &[playlist], usb.path()).unwrap();
+        assert_eq!(std::fs::read(modern).unwrap(), prepared);
+    }
+
+    #[test]
     fn usb_export_writes_shared_audio_and_independently_parseable_device_files() {
         let music = tempfile::tempdir().unwrap();
         let usb = tempfile::tempdir().unwrap();
