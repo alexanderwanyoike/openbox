@@ -473,7 +473,7 @@ fn prepare_song(
     let frames = rewrite::mp3_audio(&output)
         .map_err(|e| e.to_string())?
         .frames;
-    let [mut dat, ext, _] = generate::build_files(&backend, &usb_path, &measured, Some(frames));
+    let [mut dat, ext, two_ex] = generate::build_files(&backend, &usb_path, &measured, Some(frames));
     if let Some(grid) = &track.details.analysis {
         *dat.find_mut(b"PQTZ")
             .ok_or("Generated analysis has no beat-grid section")? =
@@ -492,7 +492,7 @@ fn prepare_song(
     } else {
         None
     };
-    for (extension, analysis) in [("DAT", dat), ("EXT", ext)] {
+    for (extension, analysis) in [("DAT", dat), ("EXT", ext), ("2EX", two_ex)] {
         let path = format!("{directory}/ANLZ{index:04}.{extension}");
         storage::write_atomic(&safe_path(staging, &path)?, &analysis.to_bytes())?;
         files.push(path);
