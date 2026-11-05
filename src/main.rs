@@ -19,20 +19,24 @@ struct Args {
 }
 
 impl Args {
-    fn library_path(&self) -> PathBuf {
-        self.library.clone().unwrap_or_else(|| {
+    fn library_path(&self) -> Result<PathBuf, String> {
+        Ok(self.library.clone().unwrap_or_else(|| {
             PathBuf::from(if self.demo {
                 ".prototype/demo-library.json"
             } else {
                 ".prototype/library.json"
             })
-        })
+        }))
     }
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let app = App::load(args.library_path(), args.usb).map_err(std::io::Error::other)?;
+    let app = App::load(
+        args.library_path().map_err(std::io::Error::other)?,
+        args.usb,
+    )
+    .map_err(std::io::Error::other)?;
     iced::application(
         move || {
             let task = app.startup();
@@ -80,18 +84,25 @@ mod tests {
         ])
         .unwrap();
         assert!(args.demo);
-        assert_eq!(args.library_path(), PathBuf::from("/music/my library.json"));
+        assert_eq!(
+            args.library_path().unwrap(),
+            PathBuf::from("/music/my library.json")
+        );
         assert_eq!(args.usb, Some(PathBuf::from("/media/DJ USB")));
         assert!(Args::try_parse_from(["openbox", "--usb"]).is_err());
         assert!(Args::try_parse_from(["openbox", "--unknown"]).is_err());
         assert_eq!(
             Args::try_parse_from(["openbox", "--demo"])
                 .unwrap()
-                .library_path(),
+                .library_path()
+                .unwrap(),
             PathBuf::from(".prototype/demo-library.json")
         );
         assert_eq!(
-            Args::try_parse_from(["openbox"]).unwrap().library_path(),
+            Args::try_parse_from(["openbox"])
+                .unwrap()
+                .library_path()
+                .unwrap(),
             PathBuf::from(".prototype/library.json")
         );
     }
