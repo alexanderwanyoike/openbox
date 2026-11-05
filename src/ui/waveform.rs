@@ -543,7 +543,7 @@ mod tests {
         let mut renderer = crate::ui::rendering::new_renderer();
         let bounds = Rectangle::new(Point::ORIGIN, Size::new(570.0, 174.0));
         let state = State::default();
-        let mut previous = None;
+        let mut previous: Option<Vec<iced_tiny_skia::Layer>> = None;
         for position in [20.0, 20.01] {
             let wave = Wave {
                 waveform: Some(&clip.waveform),

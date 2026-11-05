@@ -389,6 +389,7 @@ mod tests {
         let original_cover = usb.path().join("PIONEER/Artwork/original.jpg");
         std::fs::create_dir_all(original_cover.parent().unwrap()).unwrap();
         std::fs::write(&original_cover, b"original artwork sentinel").unwrap();
+        let original_cover = original_cover.canonicalize().unwrap();
         let database_path = usb.path().join(DATABASE);
         let database = database::Database::read(std::fs::read(&database_path).unwrap()).unwrap();
         let mut original = database.rows(0).unwrap()[0].to_vec();
@@ -440,7 +441,7 @@ mod tests {
                 .artwork
                 .as_ref()
                 .unwrap()
-                .starts_with(usb.path())
+                .starts_with(usb.path().canonicalize().unwrap())
         );
         assert_eq!(track.details.album_artist, "Album artist");
         let cover = image::open(track.details.artwork.as_ref().unwrap()).unwrap();
@@ -1136,7 +1137,11 @@ mod tests {
         export(&library, &[a], &first).unwrap();
         std::fs::rename(first, &second).unwrap();
         let reopened = open(&second).unwrap();
-        assert!(reopened.library.tracks()[0].path.starts_with(&second));
+        assert!(
+            reopened.library.tracks()[0]
+                .path
+                .starts_with(second.canonicalize().unwrap())
+        );
         assert!(reopened.library.tracks()[0].path.is_file());
         assert_eq!(reopened.library.playlists()[0].name, "Opening");
     }
