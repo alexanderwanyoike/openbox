@@ -136,3 +136,47 @@ fn cue_and_set_cue_keep_a_synced_follower_armed_for_the_next_start() {
         );
     }
 }
+
+#[test]
+fn recorded_intro_maps_acquire_beat_alignment_without_playhead_jumps() {
+    mod maps {
+        include!("fixtures/intro_maps.rs");
+    }
+    let phase = |beats: &[f64], time: f64| {
+        let pair = beats
+            .windows(2)
+            .find(|p| p[0] <= time && time < p[1])
+            .unwrap();
+        (time - pair[0]) / (pair[1] - pair[0])
+    };
+    let mut mixer = Mixer::default();
+    for (id, bpm, beats) in [
+        (DeckId::A, maps::BPM[0], maps::BEATS_0),
+        (DeckId::B, maps::BPM[1], maps::BEATS_1),
+    ] {
+        deck(&mut mixer, id, 0.5, bpm);
+        mixer.set_beat_grid(id, BeatGrid::new(bpm, beats.to_vec()).unwrap());
+        mixer.control(id, DeckControl::PlayPause);
+    }
+    mixer.sync_to(DeckId::B, DeckId::A).unwrap();
+    let mut previous = mixer.snapshot().decks[1].position;
+    for n in 0..600 {
+        mixer.render(&mut [0.0; 100], 1000, 2);
+        let [a, b] = mixer.snapshot().decks;
+        assert_eq!(b.sync_leader, Some(DeckId::A));
+        assert!(
+            (0.04..0.06).contains(&(b.position - previous)),
+            "Sync sought instead of correcting tempo"
+        );
+        previous = b.position;
+        if n >= 200 {
+            let error = (phase(maps::BEATS_0, a.position) - phase(maps::BEATS_1, b.position) + 0.5)
+                .rem_euclid(1.0)
+                - 0.5;
+            assert!(
+                error.abs() < 0.05,
+                "Intro failed to acquire beat alignment after ten seconds: {error}"
+            );
+        }
+    }
+}
