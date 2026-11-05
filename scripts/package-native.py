@@ -6,6 +6,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,17 +17,25 @@ class PackageError:
 
 
 def package(binary: Path, target: str, version: str, licenses: Path, output: Path) -> Path | PackageError:
-    if target != 'x86_64-unknown-linux-gnu':
+    if target not in ['x86_64-unknown-linux-gnu', 'x86_64-pc-windows-msvc']:
         return PackageError(f'Unsupported release target: {target}')
     try:
         output.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory() as directory:
             staging = Path(directory)
-            shutil.copyfile(binary, staging / 'openbox')
-            (staging / 'openbox').chmod(0o755)
+            executable = staging / ('openbox.exe' if target.endswith('windows-msvc') else 'openbox')
+            shutil.copyfile(binary, executable)
+            executable.chmod(0o755)
             shutil.copytree(licenses, staging / 'licenses')
             for name in ['LICENSE', 'THIRD-PARTY-NOTICES.md', 'README.md']:
                 shutil.copyfile(ROOT / name, staging / name)
+            if target.endswith('windows-msvc'):
+                archive = output / f'openbox-{target}.zip'
+                with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as destination:
+                    for item in sorted(staging.rglob('*')):
+                        if item.is_file():
+                            destination.write(item, arcname=item.relative_to(staging))
+                return archive
             archive = output / f'openbox-{target}.tar.gz'
             with tarfile.open(archive, 'w:gz') as destination:
                 for item in sorted(staging.iterdir()):
