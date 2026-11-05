@@ -147,10 +147,7 @@ impl Mixer {
     }
 
     pub fn control(&mut self, id: DeckId, control: DeckControl) {
-        let manual = matches!(
-            control,
-            DeckControl::Seek(_) | DeckControl::Rate(_) | DeckControl::Cue | DeckControl::SetCue
-        );
+        let manual = matches!(control, DeckControl::Seek(_) | DeckControl::Rate(_));
         if manual {
             self.decks[id.index()].sync_leader = None;
             self.decks[id.index()].adjustment = 1.0;
@@ -201,7 +198,10 @@ impl Mixer {
                     }
                 } else if matches!(
                     control,
-                    DeckControl::Seek(_) | DeckControl::Cue | DeckControl::PlayPause
+                    DeckControl::Seek(_)
+                        | DeckControl::Cue
+                        | DeckControl::SetCue
+                        | DeckControl::PlayPause
                 ) {
                     self.align_phase(follower);
                 }
