@@ -14,6 +14,11 @@ pub(super) fn commit(
     if super::onelibrary::Snapshot::read(root)?.as_ref() != expected_modern {
         return Err("USB OneLibrary changed. Refresh it before saving.".into());
     }
+    if expected_modern
+        .is_some_and(|snapshot| snapshot.wal.as_ref().is_some_and(|wal| !wal.is_empty()))
+    {
+        return Err("Close rekordbox and safely eject the USB before editing it in Openbox. Its OneLibrary write-ahead log is still active.".into());
+    }
     let modern = super::onelibrary::create(pdb, expected, expected_modern)?;
     let mut library = library.clone();
     for track in library.tracks().to_vec() {
