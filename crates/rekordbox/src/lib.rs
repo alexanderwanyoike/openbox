@@ -394,6 +394,59 @@ mod tests {
     }
 
     #[test]
+    fn interrupted_dual_database_publication_is_read_only_until_a_write_restores_the_pair() {
+        let music = tempfile::tempdir().unwrap();
+        let usb = tempfile::tempdir().unwrap();
+        let (library, playlist, _) = collection(music.path());
+        let device = export(&library, &[playlist], usb.path()).unwrap();
+        let before = openbox_test_support::files(usb.path());
+        let backup = usb.path().join(".openbox/backups/save-interrupted");
+        std::fs::create_dir_all(&backup).unwrap();
+        let mut journal_files = Vec::new();
+        for path in [DATABASE, onelibrary::DATABASE, MANIFEST] {
+            let bytes = std::fs::read(usb.path().join(path)).unwrap();
+            std::fs::write(backup.join(Path::new(path).file_name().unwrap()), &bytes).unwrap();
+            let hash = storage::fingerprint_bytes(&bytes);
+            journal_files.push(serde_json::json!({"path":path,"before":hash,"after":hash}));
+        }
+        let mut updated = device.library.clone();
+        updated
+            .rename_playlist(updated.playlists()[0].id, "Interrupted rename")
+            .unwrap();
+        let published = device.database.with_playlists(&updated).unwrap();
+        journal_files[0]["after"] = storage::fingerprint_bytes(&published).into();
+        std::fs::write(usb.path().join(DATABASE), &published).unwrap();
+        std::fs::write(
+            usb.path().join(".openbox/pending.json"),
+            serde_json::to_vec(&serde_json::json!({
+                "version":1,"backup":"save-interrupted","files":journal_files
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let interrupted = openbox_test_support::files(usb.path());
+        assert!(
+            open(usb.path()).is_err(),
+            "A half-published library must require recovery"
+        );
+        assert_eq!(
+            openbox_test_support::files(usb.path()),
+            interrupted,
+            "Opening must never modify USB files"
+        );
+
+        let recovered = export(&library, &[playlist], usb.path()).unwrap();
+        assert_eq!(recovered.library.playlists(), device.library.playlists());
+        assert_eq!(recovered.library.tracks(), device.library.tracks());
+        assert!(!usb.path().join(".openbox/pending.json").exists());
+        for (path, bytes) in before {
+            if path.starts_with("Contents") || path.starts_with("PIONEER/USBANLZ") {
+                assert_eq!(std::fs::read(usb.path().join(path)).unwrap(), bytes);
+            }
+        }
+    }
+
+    #[test]
     fn export_reports_monotonic_progress_and_finishes_only_after_a_readable_commit() {
         let source = tempfile::tempdir().unwrap();
         let destination = tempfile::tempdir().unwrap();
