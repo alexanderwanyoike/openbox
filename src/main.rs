@@ -5,10 +5,7 @@ use openbox::ui::App;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-#[command(
-    version,
-    about = "Organise DJ playlists and manage Rekordbox USB libraries"
-)]
+#[command(version, about = "Organise DJ playlists and manage USB libraries")]
 struct Args {
     #[arg(long, help = "Open the separate demo library")]
     demo: bool,

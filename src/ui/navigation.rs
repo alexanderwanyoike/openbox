@@ -144,7 +144,7 @@ impl App {
                         text(if self.usb_recovery {
                             "USB save interrupted."
                         } else {
-                            "Connect a Rekordbox USB to browse its playlists."
+                            "Connect a DJ USB to browse its playlists."
                         })
                         .size(11)
                         .color(colors.muted),
