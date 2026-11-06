@@ -6,7 +6,7 @@ resolver = "3"
 edition = "2024"
 rust-version = "1.96"
 license = "MIT"
-version = "0.1.1"
+version = "0.1.2"
 
 [workspace.dependencies]
 openbox-media-tools = { path = "crates/media-tools" }
@@ -30,7 +30,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Native DJ library and Rekordbox USB management with Iced"
+description = "Native DJ library and USB management with Iced"
 
 [features]
 default = ["desktop", "gpu"]

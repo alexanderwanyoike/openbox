@@ -4,7 +4,7 @@ test("published releases provide separate Windows, Linux and both Mac downloads"
   page,
 }) => {
   const assets = [
-    ["Linux", "openbox-x86_64-unknown-linux-gnu.tar.gz"],
+    ["Linux", "openbox-x86_64-unknown-linux-gnu.AppImage"],
     ["Windows", "openbox-x86_64-pc-windows-msvc.zip"],
     ["Apple silicon", "openbox-aarch64-apple-darwin.tar.gz"],
     ["Intel Mac", "openbox-x86_64-apple-darwin.tar.gz"],
@@ -87,7 +87,7 @@ test("the project site shows the actual workspace and valid release navigation",
   await page.screenshot({ path: "site/artifacts/desktop.png", fullPage: true });
 });
 
-test("published Linux releases link to their versioned binary", async ({
+test("published Linux releases link to their versioned AppImage", async ({
   page,
 }) => {
   await page.route("https://api.github.com/**", (route) =>
@@ -98,10 +98,11 @@ test("published Linux releases link to their versioned binary", async ({
           draft: false,
           prerelease: false,
           assets: [
+            { name: "openbox-x86_64-unknown-linux-gnu.tar.gz" },
             {
-              name: "openbox-x86_64-unknown-linux-gnu.tar.gz",
+              name: "openbox-x86_64-unknown-linux-gnu.AppImage",
               browser_download_url:
-                "https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/openbox-x86_64-unknown-linux-gnu.tar.gz",
+                "https://github.com/alexanderwanyoike/openbox/releases/download/v0.2.0/openbox-x86_64-unknown-linux-gnu.AppImage",
             },
           ],
         },
@@ -113,7 +114,7 @@ test("published Linux releases link to their versioned binary", async ({
     page.getByRole("link", { name: "Download Linux v0.2.0" }),
   ).toHaveAttribute(
     "href",
-    /\/v0.2.0\/openbox-x86_64-unknown-linux-gnu.tar.gz$/,
+    /\/v0.2.0\/openbox-x86_64-unknown-linux-gnu.AppImage$/,
   );
 });
 
@@ -132,4 +133,21 @@ test("mobile layout fits without horizontal overflow and retains offline release
     ),
   ).toBe(true);
   await page.screenshot({ path: "site/artifacts/mobile.png", fullPage: true });
+});
+
+test("product copy describes USB management without naming another application", async ({
+  page,
+}) => {
+  await page.route("https://api.github.com/**", (route) =>
+    route.fulfill({ json: [] }),
+  );
+  await page.goto("/");
+  await expect(page.locator("body")).not.toContainText(/rekordbox/i);
+  await expect(page.locator('meta[name="description"]')).not.toHaveAttribute(
+    "content",
+    /rekordbox/i,
+  );
+  await expect(
+    page.getByRole("heading", { name: "USB libraries", exact: true }),
+  ).toBeVisible();
 });

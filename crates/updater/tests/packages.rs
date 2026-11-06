@@ -5,7 +5,7 @@ fn release_packages_match_the_native_platform_and_archive_layout() {
     for (target, asset, binary) in [
         (
             "x86_64-unknown-linux-gnu",
-            "openbox-x86_64-unknown-linux-gnu.tar.gz",
+            "openbox-x86_64-unknown-linux-gnu.AppImage",
             "openbox",
         ),
         (

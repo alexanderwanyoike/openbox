@@ -245,7 +245,7 @@ impl App {
                 container(Space::new().width(1).height(20)).style(move |_| view::panel(p.line)),
                 icons::hint(
                     icons::action(Icon::Usb, Message::ChooseUsb, !self.busy),
-                    "Open a mounted Rekordbox USB"
+                    "Open a mounted DJ USB"
                 ),
                 icons::hint(
                     icons::labeled(

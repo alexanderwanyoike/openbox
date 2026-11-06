@@ -117,7 +117,7 @@ pub(super) fn recover(root: &Path) -> Result<(), String> {
     }
     let wal_path = safe_path(root, &format!("{}-wal", onelibrary::DATABASE))?;
     if read_optional(&wal_path)?.is_some_and(|wal| !wal.is_empty()) {
-        return Err("Close rekordbox and safely eject the USB before recovery. Its OneLibrary write-ahead log contains newer changes.".into());
+        return Err("Close other DJ software and safely eject the USB before recovery. Its OneLibrary write-ahead log contains newer changes.".into());
     }
     if std::fs::metadata(&marker).map_err(|e| e.to_string())?.len() > 65536 {
         return Err("USB recovery journal is too large".into());

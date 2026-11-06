@@ -44,6 +44,7 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
     let staged = temp.path().join("staged");
     fs::create_dir_all(staged.join(package.binary).parent().unwrap()).unwrap();
     let marker = temp.path().join("restarted");
+    #[cfg(not(target_os = "linux"))]
     let executable = format!("openbox{}", std::env::consts::EXE_SUFFIX);
     let source = temp.path().join("fixture.rs");
     fs::write(&source, format!(
@@ -63,7 +64,39 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
         fs::create_dir_all(&resources).unwrap();
         fs::write(resources.join("updated.txt"), "new resource").unwrap();
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    if let Some(tools) = std::env::var_os("OPENBOX_APPIMAGE_TOOLS") {
+        let licenses = temp.path().join("licenses");
+        fs::create_dir(&licenses).unwrap();
+        fs::write(licenses.join("fixture.txt"), "Generated test executable").unwrap();
+        assert!(
+            Command::new("python3")
+                .arg(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../scripts/package-native.py"
+                ))
+                .arg("--binary")
+                .arg(staged.join(package.binary))
+                .args([
+                    "--target",
+                    package.target,
+                    "--version",
+                    "0.2.0",
+                    "--licenses"
+                ])
+                .arg(licenses)
+                .arg("--output")
+                .arg(temp.path())
+                .arg("--appimage-tools")
+                .arg(tools)
+                .status()
+                .unwrap()
+                .success()
+        );
+    } else {
+        fs::copy(staged.join(package.binary), &archive).unwrap();
+    }
+    #[cfg(target_os = "macos")]
     assert!(
         Command::new("tar")
             .args(["-czf"])
@@ -116,6 +149,7 @@ fn verified_download_replaces_a_disposable_install_and_restart_preserves_argumen
         .unwrap();
     assert!(
         Command::new(&installed)
+            .env("APPIMAGE_EXTRACT_AND_RUN", "1")
             .arg("--version")
             .output()
             .unwrap()

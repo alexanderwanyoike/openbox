@@ -4,7 +4,7 @@ A native Rust and Iced application for preparing DJ collections on Linux, Window
 
 - Search, sort and edit tracks in batches, with tags and cover artwork.
 - Organise playlists in folders and move selections between local and USB libraries.
-- Read existing Rekordbox USBs and export both Device Library and OneLibrary databases.
+- Read existing DJ USBs and export both Device Library and OneLibrary databases.
 - Preview transitions with two decks, beat sync, EQ knobs and channel faders.
 - Analyze BPM, key and beatgrids with aubio, libkeyfinder and Mixxx grid post-processing.
 - Choose light or dark mode, materials, accents and waveform palettes.
@@ -13,26 +13,27 @@ A native Rust and Iced application for preparing DJ collections on Linux, Window
 
 ## Installation
 
-Get the archive for your platform from [Releases](https://github.com/alexanderwanyoike/openbox/releases) or the [project site](https://alexanderwanyoike.github.io/openbox/).
+Get the download for your platform from [Releases](https://github.com/alexanderwanyoike/openbox/releases) or the [project site](https://alexanderwanyoike.github.io/openbox/).
 
 | Platform | Download |
 |---|---|
-| Linux, x86_64 | `openbox-x86_64-unknown-linux-gnu.tar.gz`, built on Ubuntu 24.04 |
+| Linux, x86_64 | `openbox-x86_64-unknown-linux-gnu.AppImage`, built on Ubuntu 24.04 |
 | Windows, x86_64 | `openbox-x86_64-pc-windows-msvc.zip` |
 | macOS, Apple silicon | `openbox-aarch64-apple-darwin.tar.gz` |
 | macOS, Intel | `openbox-x86_64-apple-darwin.tar.gz` |
 
 Install FFmpeg and ffprobe, including the `libmp3lame` encoder. On Ubuntu, use `sudo apt install ffmpeg`; on macOS, `brew install ffmpeg`. Windows users can install `Gyan.FFmpeg` with WinGet and restart Openbox after updating PATH. Windows also requires the [Microsoft Visual C++ x64 runtime](https://aka.ms/vc14/vc_redist.x64.exe). FFTW and the analysis engines are included in release builds. Release binaries are unsigned.
 
-Extract the archive and run Openbox. On macOS, move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
-
-The Linux archive includes desktop launchers and icons. To install them for your account, run these commands from the extracted archive and ensure `~/.local/bin` is on your desktop session's PATH:
+On Linux, make the AppImage executable and open it:
 
 ```sh
-install -Dm755 openbox "$HOME/.local/bin/openbox"
-mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}"
-cp -R share/. "${XDG_DATA_HOME:-$HOME/.local/share}/"
+chmod +x openbox-x86_64-unknown-linux-gnu.AppImage
+./openbox-x86_64-unknown-linux-gnu.AppImage
 ```
+
+Keep the AppImage in a writable folder to use automatic updates. If FUSE is unavailable, run it with `--appimage-extract-and-run`. The download includes the Openbox icon and desktop entry for AppImage launchers. FFmpeg and the system audio libraries are still required.
+
+On Windows, extract the ZIP and run `openbox.exe`. On macOS, extract the archive and move `Openbox.app` to Applications. USBs must already be mounted; Openbox does not format them.
 
 ## Run
 
@@ -133,7 +134,7 @@ Opening a USB is read-only. Writes back up the previous database under `.openbox
 
 New collection audio is encoded as stereo 44.1 kHz, 320 kbps MP3 with DAT/EXT/2EX waveforms and detected beat entries. BPM and key are written into the device database and ID3 tags. Export compensates for MP3 priming delay so the grid follows the exported waveform. Existing USB audio, analysis and artwork remain byte for byte; unchanged transfers reuse complete prepared assets. Exports cached before modern waveform support are prepared again while retaining their previous device files.
 
-Imports automatically analyze BPM and beats using [aubio](https://aubio.org/), with constant-tempo grid post-processing adapted from [Mixxx BeatUtils](https://github.com/mixxxdj/mixxx/blob/bc49961fd3e5a46cd46588090c652a0d7ec44e18/src/track/beatutils.cpp). [libkeyfinder](https://github.com/mixxxdj/libkeyfinder) detects musical key. For existing collections, click **Analyze** for the whole library, or select a batch first, then reexport the playlist. Analysis progress appears in the status bar. Export refreshes missing or outdated Openbox analysis without changing local records or imported Rekordbox grids. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering is a reference and does not identify the musical downbeat. Dynamic-tempo recordings, tempo, key and phase still need checking by ear before relying on player sync/quantize.
+Imports automatically analyze BPM and beats using [aubio](https://aubio.org/), with constant-tempo grid post-processing adapted from [Mixxx BeatUtils](https://github.com/mixxxdj/mixxx/blob/bc49961fd3e5a46cd46588090c652a0d7ec44e18/src/track/beatutils.cpp). [libkeyfinder](https://github.com/mixxxdj/libkeyfinder) detects musical key. For existing collections, click **Analyze** for the whole library, or select a batch first, then reexport the playlist. Analysis progress appears in the status bar. Export refreshes missing or outdated Openbox analysis without changing local records or grids imported from USBs. Silence or short clips may produce no grid; the import status reports that count. Automatic 4/4 bar numbering is a reference and does not identify the musical downbeat. Dynamic-tempo recordings, tempo, key and phase still need checking by ear before relying on player sync/quantize.
 
 Lofty reads ID3 and other supported tags. Titles, artists, albums, genres, album artists, composers, comments, dates and track/disc numbers are retained; the browser and preview decks display cover artwork. USB export writes ID3v2.3 with an embedded JPEG and registers 80x80 and 240x240 artwork files. USB playlist import copies artwork, audio and the grid locally so they remain available after unplugging. Local cue editing and exporting imported cues to another device are not implemented.
 
@@ -179,7 +180,7 @@ xvfb-run -a -s '-screen 0 1600x1100x24' node scripts/analysis-smoke.mjs
 
 Workspace code also uses light optimization in development builds so `cargo run` keeps preview rendering responsive.
 
-The native smoke harness uses the release executable, a 510-track collection, generated audio and a real Rekordbox database fixture in isolated temporary folders. It exercises keyboard selection, bulk edits, playlist creation from selection, scrolling, sorted batch USB transfer, replacement, deletion/Undo, nested trees and import. It checks original audio, analysis and database pages byte for byte. It requires Node.js, Xvfb, xdotool and ImageMagick. Set `OPENBOX_BIN=target/debug/openbox` to test a development executable.
+The native smoke harness uses the release executable, a 510-track collection, generated audio and a real device database fixture in isolated temporary folders. It exercises keyboard selection, bulk edits, playlist creation from selection, scrolling, sorted batch USB transfer, replacement, deletion/Undo, nested trees and import. It checks original audio, analysis and database pages byte for byte. It requires Node.js, Xvfb, xdotool and ImageMagick. Set `OPENBOX_BIN=target/debug/openbox` to test a development executable.
 
 The motion check requires FFmpeg and an accelerated X11 desktop. Xvfb provides software rendering for the functional checks. The player harness also requires `pactl` and `parec`. It creates an isolated test output, records generated tones to verify the sound, and removes that output afterwards without changing the desktop's default sink.
 
@@ -193,7 +194,7 @@ The compiled executable is `target/release/openbox`. See [validation details](do
 
 ### Corresponding-source archive
 
-Release source downloads include Cargo dependencies and FFTW 3.3.10. Extract the archive, set `OPENBOX_FFTW_SOURCE` to the absolute path of `native/fftw-3.3.10`, then run `cargo build --release --locked --offline`. The platform compiler, CMake and development libraries described above remain required. The generated `.cargo/config.toml` resolves the vendored crates without contacting their registries.
+Release source downloads include Cargo dependencies, FFTW 3.3.10 and the AppImage runtime sources under `native/appimage`. Extract the archive, set `OPENBOX_FFTW_SOURCE` to the absolute path of `native/fftw-3.3.10`, then run `cargo build --release --locked --offline`. The platform compiler, CMake and development libraries described above remain required. The generated `.cargo/config.toml` resolves the vendored crates without contacting their registries.
 
 Mac downloads contain `Openbox.app` for macOS 15 or later. Move it to a writable Applications location before using in-app updates. Downloads are unsigned and not notarized. FFmpeg and ffprobe remain separate runtime requirements on each platform.
 
