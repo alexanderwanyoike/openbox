@@ -1,5 +1,15 @@
 import { test, expect } from "@playwright/test";
 
+test("the homepage declares the Openbox custom domain as canonical", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    "https://openbox.alphaneuron.net/",
+  );
+});
+
 test("published releases provide separate Windows, Linux and both Mac downloads", async ({
   page,
 }) => {
